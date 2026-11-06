@@ -1,0 +1,6 @@
+{
+  "name": "دلفینا: شوالیهٔ صدفی و هیولای سکوت",
+  "description": "بازی آموزشی دوبعدی، داستانی و کودکانه مبتنی بر تشخیص گفتار فارسی در دنیای دریایی دلفینا؛ با صدای خودت آکسی شوالیهٔ صدفی را هدایت کن و مروارید صدا را نجات بده.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

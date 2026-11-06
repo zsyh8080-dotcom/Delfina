@@ -1,0 +1,381 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Vazirmatn', system-ui, -apple-system, sans-serif;
+    --font-display: 'Lalezar', 'Vazirmatn', system-ui, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    direction: rtl;
+    background-color: #042f4b;
+    color: #FFF8EE;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+  }
+
+  h1, h2, .font-display {
+    font-family: var(--font-display);
+  }
+}
+
+/* Grounded idle breathing stance — feet/tentacles stay planted on the ground (Y = 0px) */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translate3d(0px, 0px, 0) scaleX(1) scaleY(1);
+  }
+  50% {
+    transform: translate3d(0px, 0px, 0) scaleX(1.02) scaleY(0.98);
+  }
+}
+
+/* Fluid Multi-Phase Axie Attack Lunge along the ground toward the Monster */
+@keyframes axieFluidAttackLunge {
+  0% {
+    transform: translate3d(0px, 0px, 0) scale(1);
+  }
+  16% {
+    transform: translate3d(18px, 0px, 0) scaleX(0.92) scaleY(1.06) rotate(4deg);
+  }
+  42% {
+    transform: translate3d(-128px, 0px, 0) scaleX(1.16) scaleY(0.94) rotate(-6deg);
+  }
+  65% {
+    transform: translate3d(-112px, 0px, 0) scale(1.12) rotate(-2deg);
+  }
+  100% {
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
+  }
+}
+
+/* Fluid Coral Sword Swing Arc (Windup Back -> Wide Sweeping Slash -> Follow-Through -> Ready) */
+@keyframes swordFluidSwing {
+  0% {
+    transform: rotate(-12deg) translate(0px, 0px) scale(1);
+  }
+  18% {
+    transform: rotate(42deg) translate(10px, -10px) scale(1.08);
+  }
+  45% {
+    transform: rotate(-98deg) translate(-28px, -16px) scale(1.32);
+  }
+  68% {
+    transform: rotate(-76deg) translate(-18px, -10px) scale(1.22);
+  }
+  100% {
+    transform: rotate(-12deg) translate(0px, 0px) scale(1);
+  }
+}
+
+/* Ultra-Smooth 10-Point Parabolic Jump Arc launching from the ground over the ground-rolling Ocean Wave */
+@keyframes axieFluidJumpArc {
+  0% {
+    transform: translate3d(0px, 0px, 0) scaleX(1.08) scaleY(0.92) rotate(0deg);
+  }
+  8% {
+    transform: translate3d(-4px, 0px, 0) scaleX(1.14) scaleY(0.86) rotate(2deg);
+  }
+  20% {
+    transform: translate3d(-16px, -52px, 0) scaleX(0.94) scaleY(1.08) rotate(-8deg);
+  }
+  34% {
+    transform: translate3d(-28px, -98px, 0) scaleX(0.96) scaleY(1.04) rotate(-5deg);
+  }
+  48% {
+    transform: translate3d(-36px, -120px, 0) scale(1.04) rotate(0deg);
+  }
+  62% {
+    transform: translate3d(-30px, -98px, 0) scaleX(0.98) scaleY(1.03) rotate(5deg);
+  }
+  76% {
+    transform: translate3d(-18px, -50px, 0) scaleX(0.95) scaleY(1.06) rotate(7deg);
+  }
+  88% {
+    transform: translate3d(-6px, -8px, 0) scaleX(1.04) scaleY(0.96) rotate(2deg);
+  }
+  95% {
+    transform: translate3d(-2px, 0px, 0) scaleX(1.08) scaleY(0.92) rotate(0deg);
+  }
+  100% {
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
+  }
+}
+
+/* Fluid Seashell Shield Stance planted on the ground */
+@keyframes axieFluidShield {
+  0% {
+    transform: translate3d(0px, 0px, 0) scale(1);
+  }
+  30% {
+    transform: translate3d(-34px, 0px, 0) scale(1.08);
+  }
+  70% {
+    transform: translate3d(-26px, 0px, 0) scale(1.06);
+  }
+  100% {
+    transform: translate3d(0px, 0px, 0) scale(1);
+  }
+}
+
+/* Fluid Golden Bubble Power Cast */
+@keyframes axieFluidBubbleCast {
+  0% {
+    transform: translate3d(0px, 0px, 0) scale(1);
+  }
+  35% {
+    transform: translate3d(-72px, -16px, 0) scale(1.14) rotate(-4deg);
+  }
+  70% {
+    transform: translate3d(-58px, -10px, 0) scale(1.1) rotate(2deg);
+  }
+  100% {
+    transform: translate3d(0px, 0px, 0) scale(1);
+  }
+}
+
+/* Monster dynamically advancing along the ground toward center of screen */
+@keyframes monsterChargeForward {
+  0%, 100% {
+    transform: translate3d(26px, 0px, 0) scale(1.01);
+  }
+  35% {
+    transform: translate3d(68px, 0px, 0) scaleX(1.05) scaleY(0.98) rotate(1.5deg);
+  }
+  60% {
+    transform: translate3d(92px, 0px, 0) scaleX(1.09) scaleY(0.95) rotate(3deg);
+  }
+  82% {
+    transform: translate3d(48px, 0px, 0) scale(1.03);
+  }
+}
+
+/* Heavy Boss Tentacle Telegraph & Center Lunge along the ground toward Axie */
+@keyframes monsterTentacleLunge {
+  0%, 100% {
+    transform: translate3d(32px, 0px, 0) scale(1.02);
+  }
+  35% {
+    transform: translate3d(84px, 0px, 0) scaleX(1.08) scaleY(0.96) rotate(-2deg);
+  }
+  58% {
+    transform: translate3d(116px, 0px, 0) scaleX(1.14) scaleY(0.92) rotate(5deg);
+  }
+  80% {
+    transform: translate3d(58px, 0px, 0) scale(1.04);
+  }
+}
+
+/* Fluid Spring-Physics Knockback & Physical Recoil along the ground when Boss reacts to 'حمله کن' */
+@keyframes monsterCloseHitShake {
+  0% {
+    transform: translate3d(56px, 0px, 0) scale(1.06);
+    filter: brightness(2) drop-shadow(0 0 28px #FFD76B);
+  }
+  18% {
+    transform: translate3d(-44px, 0px, 0) scaleX(0.84) scaleY(1.16) rotate(-10deg);
+    filter: brightness(1.75) drop-shadow(0 0 24px #FF84B2);
+  }
+  38% {
+    transform: translate3d(-12px, 0px, 0) scaleX(1.12) scaleY(0.9) rotate(6deg);
+    filter: brightness(1.35);
+  }
+  58% {
+    transform: translate3d(-34px, 0px, 0) scaleX(0.94) scaleY(1.06) rotate(-6deg);
+  }
+  78% {
+    transform: translate3d(-20px, 0px, 0) scale(0.98) rotate(-2deg);
+  }
+  100% {
+    transform: translate3d(-24px, 0px, 0) scale(0.96) rotate(-3deg);
+    filter: brightness(1);
+  }
+}
+
+/* Finite Hit Flash Burst (Never loops infinitely) */
+@keyframes hitFlashBurst {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+
+/* Sword Slash Crescent Effect directly on Monster */
+@keyframes slashCutArc {
+  0% {
+    transform: scale(0.35) rotate(-32deg);
+    opacity: 0;
+  }
+  28% {
+    transform: scale(1.22) rotate(6deg);
+    opacity: 1;
+  }
+  65% {
+    transform: scale(1.36) rotate(18deg);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.5) rotate(26deg);
+    opacity: 0;
+  }
+}
+
+/* Projectile flying smoothly from Monster (Left) to Axie (Right) */
+@keyframes projectileLeftToRight {
+  0% {
+    transform: translate3d(-92px, -10px, 0) scale(0.82) rotate(0deg);
+    opacity: 0.3;
+  }
+  18% {
+    opacity: 1;
+  }
+  78% {
+    transform: translate3d(96px, 2px, 0) scale(1.16) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(124px, -14px, 0) scale(1.3) rotate(260deg);
+    opacity: 0;
+  }
+}
+
+/* Projectile deflected by Axie's Shield flying from Right back into Monster (Left) */
+@keyframes projectileDeflectRightToLeft {
+  0% {
+    transform: translate3d(92px, 0px, 0) scale(1.25);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(-108px, -18px, 0) scale(0.85);
+    opacity: 0;
+  }
+}
+
+/* Curling Ocean Wave rolling strictly along the ground (Y = 0px) from Monster (Left) to Axie (Right) */
+@keyframes waveSweepLeftToRight {
+  0% {
+    transform: translate3d(-170px, 0px, 0) scaleX(0.92) scaleY(0.88);
+    opacity: 0.35;
+  }
+  18% {
+    transform: translate3d(-95px, 0px, 0) scaleX(1.02) scaleY(1.02);
+    opacity: 1;
+  }
+  52% {
+    transform: translate3d(25px, 0px, 0) scaleX(1.08) scaleY(1.08);
+    opacity: 1;
+  }
+  82% {
+    transform: translate3d(135px, 0px, 0) scaleX(1.04) scaleY(1.02);
+    opacity: 0.96;
+  }
+  100% {
+    transform: translate3d(195px, 0px, 0) scaleX(0.96) scaleY(0.86);
+    opacity: 0;
+  }
+}
+
+@keyframes pulseRing {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(1.32);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+.animate-float-slow {
+  transform-origin: bottom center;
+  animation: floatSlow 3.2s ease-in-out infinite;
+}
+
+.animate-axie-fluid-attack {
+  transform-origin: bottom center;
+  animation: axieFluidAttackLunge 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-sword-fluid-swing {
+  transform-origin: 68px 134px;
+  animation: swordFluidSwing 0.88s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-axie-fluid-jump {
+  transform-origin: bottom center;
+  animation: axieFluidJumpArc 1.05s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-axie-fluid-shield {
+  transform-origin: bottom center;
+  animation: axieFluidShield 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-axie-fluid-bubble {
+  transform-origin: bottom center;
+  animation: axieFluidBubbleCast 1.05s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-monster-charge {
+  transform-origin: bottom center;
+  animation: monsterChargeForward 2.1s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+}
+
+.animate-monster-tentacle-lunge {
+  transform-origin: bottom center;
+  animation: monsterTentacleLunge 1.85s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+}
+
+.animate-monster-hit-closeup {
+  transform-origin: bottom center;
+  animation: monsterCloseHitShake 0.82s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-hit-flash-burst {
+  animation: hitFlashBurst 0.65s ease-out forwards;
+}
+
+.animate-slash-arc {
+  animation: slashCutArc 0.68s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-projectile-attack {
+  animation: projectileLeftToRight 1.45s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+}
+
+.animate-projectile-deflect {
+  animation: projectileDeflectRightToLeft 0.58s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-wave-sweep {
+  transform-origin: bottom center;
+  animation: waveSweepLeftToRight 1.75s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulseRing 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float-slow,
+  .animate-pulse-ring {
+    animation: none !important;
+  }
+}
