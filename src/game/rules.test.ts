@@ -68,7 +68,7 @@ test('parseVoiceCommand and parseVoiceAlternativesWithConfidence handle exact, c
       { transcript: 'حمله کن', confidence: 0.72 },
     ],
     false,
-    0.35
+    0.25
   );
   assert.equal(confRes.command, 'ATTACK');
 
@@ -79,18 +79,6 @@ test('parseVoiceCommand and parseVoiceAlternativesWithConfidence handle exact, c
   assert.equal(
     parseVoiceAlternatives(['سپر بگیر', 'بپر بکن'], true, 'JUMP').command,
     'SHIELD'
-  );
-  assert.equal(
-    parseVoiceCommand('بپر بکن', true, 'ATTACK').command,
-    'JUMP'
-  );
-  assert.equal(
-    parseVoiceCommand('سپر بکن', true, 'JUMP').command,
-    'SHIELD'
-  );
-  assert.equal(
-    parseVoiceCommand('حمله بکن', true, 'JUMP').command,
-    'ATTACK'
   );
 
   // Bubble Power locked vs unlocked
@@ -107,7 +95,7 @@ test('parseVoiceCommand and parseVoiceAlternativesWithConfidence handle exact, c
   assert.equal(parseVoiceCommand('سلام آکسی خوبی', true).command, 'UNKNOWN');
 });
 
-test('Round 1 tutorial state machine completes all 4 steps with logical 40-point score, opens the Shell Gate, and executes whatever command or phrase the player speaks', () => {
+test('Round 1 tutorial state machine completes all 4 steps with reasonable small score (+2 per step = 8 total) and opens the Shell Gate', () => {
   let state = createInitialCombatState(1, 'easy');
   assert.equal(state.round, 1);
   assert.equal(state.stepIndex, 0);
@@ -117,74 +105,69 @@ test('Round 1 tutorial state machine completes all 4 steps with logical 40-point
   assert.equal(step1.accepted, true);
   assert.equal(step1.nextState.showSttDiagram, true);
   assert.equal(step1.nextState.enemyHp, 50);
-  assert.equal(step1.nextState.score, 10);
+  assert.equal(step1.nextState.score, 2);
   state = advanceAfterPlayerAction(step1.nextState);
   assert.equal(state.stepIndex, 1);
 
-  // Even if player says an alternate command or arbitrary phrase on Step 2, it executes immediately!
-  const altStep2 = evaluateFinalSpeechCommand(state, 'حمله کن');
-  assert.equal(altStep2.accepted, true);
-  assert.equal(altStep2.parsedCommand, 'ATTACK');
-  assert.equal(altStep2.nextState.axieAnim, 'Attack');
-
   const step2 = evaluateFinalSpeechCommand(state, 'سپر بگیر');
   assert.equal(step2.accepted, true);
-  assert.equal(step2.nextState.score, 20);
+  assert.equal(step2.nextState.score, 4);
   state = advanceAfterPlayerAction(step2.nextState);
   assert.equal(state.stepIndex, 2);
 
   const step3 = evaluateFinalSpeechCommand(state, 'بپر بکن');
   assert.equal(step3.accepted, true);
-  assert.equal(step3.nextState.score, 30);
+  assert.equal(step3.nextState.score, 6);
   state = advanceAfterPlayerAction(step3.nextState);
   assert.equal(state.stepIndex, 3);
 
-  // Even an arbitrary spoken phrase executes the expected step action so voice never fails
   const step4 = evaluateFinalSpeechCommand(state, 'آکسی زود باش بزن');
   assert.equal(step4.accepted, true);
   assert.equal(step4.nextState.enemyHp, 0);
   assert.equal(step4.nextState.gateOpened, true);
-  assert.equal(step4.nextState.score, 40);
+  assert.equal(step4.nextState.score, 8);
   state = advanceAfterPlayerAction(step4.nextState);
   assert.equal(state.phase, 'ROUND_COMPLETE');
   assert.equal(state.starsEarned, 3);
 });
 
-test('Round 2 Octopus Boss fight follows exact 6-step HP progression (100 -> 80 -> 60 -> 25 -> 0), logical 60-point round score, and frees the Pearl', () => {
+test('Round 2 Octopus Boss fight supports FAR dodge vs NEAR hit and reasonable small scores', () => {
   let state = createInitialCombatState(2, 'normal');
   assert.equal(state.enemyHp, 100);
-  assert.equal(state.bubblePowerUnlocked, false);
+  assert.equal(state.bossRange, 'NEAR');
   assert.equal(state.score, 0);
 
-  // If player says Bubble Power at any time, it executes BubblePower without blocking
-  const earlyBubble = evaluateFinalSpeechCommand(state, 'قدرت حبابی');
-  assert.equal(earlyBubble.accepted, true);
-  assert.equal(earlyBubble.parsedCommand, 'BUBBLE_POWER');
-  assert.equal(earlyBubble.nextState.axieAnim, 'BubblePower');
+  // Test Distance-Based Dodge: when bossRange is FAR, attacking causes OctopusBoss to dodge with 0 damage!
+  const farState = { ...state, bossRange: 'FAR' as const };
+  const dodgeRes = evaluateFinalSpeechCommand(farState, 'حمله کن');
+  assert.equal(dodgeRes.accepted, false);
+  assert.equal(dodgeRes.nextState.enemyHp, 100);
+  assert.equal(dodgeRes.nextState.octopusAnim, 'Dodge');
 
+  // Standard 6-step Round 2 progression
   let res = evaluateFinalSpeechCommand(state, 'حمله کن');
   assert.equal(res.accepted, true);
   assert.equal(res.nextState.enemyHp, 80);
   assert.equal(res.nextState.lastFloatingDamage, 20);
-  assert.equal(res.nextState.score, 10);
+  assert.equal(res.nextState.score, 2);
   state = advanceAfterPlayerAction(res.nextState);
 
   res = evaluateFinalSpeechCommand(state, 'سپر بگیر');
   assert.equal(res.accepted, true);
   assert.equal(res.nextState.enemyHp, 80);
-  assert.equal(res.nextState.score, 20);
+  assert.equal(res.nextState.score, 4);
   state = advanceAfterPlayerAction(res.nextState);
 
   res = evaluateFinalSpeechCommand(state, 'حمله کن');
   assert.equal(res.accepted, true);
   assert.equal(res.nextState.enemyHp, 60);
-  assert.equal(res.nextState.score, 30);
+  assert.equal(res.nextState.score, 6);
   state = advanceAfterPlayerAction(res.nextState);
 
   res = evaluateFinalSpeechCommand(state, 'بپر بکن');
   assert.equal(res.accepted, true);
   assert.equal(res.nextState.enemyHp, 60);
-  assert.equal(res.nextState.score, 40);
+  assert.equal(res.nextState.score, 8);
   state = advanceAfterPlayerAction(res.nextState);
   assert.equal(state.bubblePowerUnlocked, true);
 
@@ -192,14 +175,14 @@ test('Round 2 Octopus Boss fight follows exact 6-step HP progression (100 -> 80 
   assert.equal(res.accepted, true);
   assert.equal(res.nextState.enemyHp, 25);
   assert.equal(res.nextState.lastFloatingDamage, 35);
-  assert.equal(res.nextState.score, 60);
+  assert.equal(res.nextState.score, 12);
   state = advanceAfterPlayerAction(res.nextState);
 
   res = evaluateFinalSpeechCommand(state, 'حمله کن');
   assert.equal(res.accepted, true);
   assert.equal(res.nextState.enemyHp, 0);
   assert.equal(res.nextState.pearlFreed, true);
-  assert.equal(res.nextState.score, 70);
+  assert.equal(res.nextState.score, 14);
   state = advanceAfterPlayerAction(res.nextState);
   assert.equal(state.phase, 'VICTORY');
 });

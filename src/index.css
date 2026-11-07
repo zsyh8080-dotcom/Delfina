@@ -21,7 +21,7 @@
   }
 }
 
-/* Grounded idle breathing stance — feet/tentacles stay planted on the ground (Y = 0px) */
+/* Grounded idle breathing stance — starts and ends at (0, 0, 0) */
 @keyframes floatSlow {
   0%, 100% {
     transform: translate3d(0px, 0px, 0) scaleX(1) scaleY(1);
@@ -31,72 +31,88 @@
   }
 }
 
-/* Fluid Multi-Phase Axie Attack Lunge along the ground toward the Monster */
+/*
+ * Fluid Multi-Phase Axie Attack Lunge along the ground toward OctopusBoss:
+ * - 0% -> 14%: Slight anticipation lean
+ * - 14% -> 32%: Fast smooth dash right up to OctopusBoss (-118px) so the sword physically hits!
+ * - 32% -> 58%: Hold follow-through on target
+ * - 58% -> 100%: Smoothly glide back to (0, 0, 0)
+ */
 @keyframes axieFluidAttackLunge {
   0% {
-    transform: translate3d(0px, 0px, 0) scale(1);
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
   }
-  16% {
-    transform: translate3d(18px, 0px, 0) scaleX(0.92) scaleY(1.06) rotate(4deg);
+  14% {
+    transform: translate3d(10px, 0px, 0) scaleX(0.96) scaleY(1.04) rotate(3deg);
   }
-  42% {
-    transform: translate3d(-128px, 0px, 0) scaleX(1.16) scaleY(0.94) rotate(-6deg);
+  32% {
+    transform: translate3d(-118px, 0px, 0) scaleX(1.08) scaleY(0.95) rotate(-5deg);
   }
-  65% {
-    transform: translate3d(-112px, 0px, 0) scale(1.12) rotate(-2deg);
+  56% {
+    transform: translate3d(-104px, 0px, 0) scale(1.04) rotate(-3deg);
+  }
+  82% {
+    transform: translate3d(-24px, 0px, 0) scale(1.01) rotate(0deg);
   }
   100% {
     transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
   }
 }
 
-/* Fluid Coral Sword Swing Arc (Windup Back -> Wide Sweeping Slash -> Follow-Through -> Ready) */
+/*
+ * Fluid Coral Sword Swing Arc:
+ * Synchronized with axieFluidAttackLunge so at 32% the long glowing blade slices
+ * horizontally/diagonally right through the center of OctopusBoss's body!
+ */
 @keyframes swordFluidSwing {
   0% {
-    transform: rotate(-12deg) translate(0px, 0px) scale(1);
+    transform: rotate(-14deg) translate(0px, 0px) scale(1);
   }
-  18% {
-    transform: rotate(42deg) translate(10px, -10px) scale(1.08);
+  14% {
+    transform: rotate(38deg) translate(10px, -8px) scale(1.06);
   }
-  45% {
-    transform: rotate(-98deg) translate(-28px, -16px) scale(1.32);
+  32% {
+    transform: rotate(-98deg) translate(-38px, -12px) scale(1.34);
   }
-  68% {
-    transform: rotate(-76deg) translate(-18px, -10px) scale(1.22);
+  56% {
+    transform: rotate(-84deg) translate(-28px, -8px) scale(1.24);
+  }
+  82% {
+    transform: rotate(-28deg) translate(-6px, -2px) scale(1.04);
   }
   100% {
-    transform: rotate(-12deg) translate(0px, 0px) scale(1);
+    transform: rotate(-14deg) translate(0px, 0px) scale(1);
   }
 }
 
 /* Ultra-Smooth 10-Point Parabolic Jump Arc launching from the ground over the ground-rolling Ocean Wave */
 @keyframes axieFluidJumpArc {
   0% {
-    transform: translate3d(0px, 0px, 0) scaleX(1.08) scaleY(0.92) rotate(0deg);
+    transform: translate3d(0px, 0px, 0) scaleX(1.06) scaleY(0.94) rotate(0deg);
   }
   8% {
-    transform: translate3d(-4px, 0px, 0) scaleX(1.14) scaleY(0.86) rotate(2deg);
+    transform: translate3d(-4px, 0px, 0) scaleX(1.1) scaleY(0.9) rotate(2deg);
   }
   20% {
-    transform: translate3d(-16px, -52px, 0) scaleX(0.94) scaleY(1.08) rotate(-8deg);
+    transform: translate3d(-14px, -52px, 0) scaleX(0.95) scaleY(1.06) rotate(-6deg);
   }
   34% {
-    transform: translate3d(-28px, -98px, 0) scaleX(0.96) scaleY(1.04) rotate(-5deg);
+    transform: translate3d(-24px, -96px, 0) scaleX(0.97) scaleY(1.03) rotate(-4deg);
   }
   48% {
-    transform: translate3d(-36px, -120px, 0) scale(1.04) rotate(0deg);
+    transform: translate3d(-30px, -116px, 0) scale(1.03) rotate(0deg);
   }
   62% {
-    transform: translate3d(-30px, -98px, 0) scaleX(0.98) scaleY(1.03) rotate(5deg);
+    transform: translate3d(-24px, -96px, 0) scaleX(0.98) scaleY(1.02) rotate(4deg);
   }
   76% {
-    transform: translate3d(-18px, -50px, 0) scaleX(0.95) scaleY(1.06) rotate(7deg);
+    transform: translate3d(-14px, -48px, 0) scaleX(0.96) scaleY(1.04) rotate(5deg);
   }
   88% {
-    transform: translate3d(-6px, -8px, 0) scaleX(1.04) scaleY(0.96) rotate(2deg);
+    transform: translate3d(-4px, -8px, 0) scaleX(1.03) scaleY(0.97) rotate(2deg);
   }
   95% {
-    transform: translate3d(-2px, 0px, 0) scaleX(1.08) scaleY(0.92) rotate(0deg);
+    transform: translate3d(-1px, 0px, 0) scaleX(1.05) scaleY(0.95) rotate(0deg);
   }
   100% {
     transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
@@ -109,10 +125,10 @@
     transform: translate3d(0px, 0px, 0) scale(1);
   }
   30% {
-    transform: translate3d(-34px, 0px, 0) scale(1.08);
+    transform: translate3d(-28px, 0px, 0) scale(1.06);
   }
   70% {
-    transform: translate3d(-26px, 0px, 0) scale(1.06);
+    transform: translate3d(-22px, 0px, 0) scale(1.05);
   }
   100% {
     transform: translate3d(0px, 0px, 0) scale(1);
@@ -125,106 +141,113 @@
     transform: translate3d(0px, 0px, 0) scale(1);
   }
   35% {
-    transform: translate3d(-72px, -16px, 0) scale(1.14) rotate(-4deg);
+    transform: translate3d(-78px, -12px, 0) scale(1.12) rotate(-3deg);
   }
   70% {
-    transform: translate3d(-58px, -10px, 0) scale(1.1) rotate(2deg);
+    transform: translate3d(-62px, -8px, 0) scale(1.08) rotate(2deg);
   }
   100% {
     transform: translate3d(0px, 0px, 0) scale(1);
   }
 }
 
-/* Monster dynamically advancing along the ground toward center of screen */
+/*
+ * Monster idle/advancing stance — starts and ends at (0, 0, 0) so switching to Hit never snaps!
+ */
 @keyframes monsterChargeForward {
   0%, 100% {
-    transform: translate3d(26px, 0px, 0) scale(1.01);
+    transform: translate3d(0px, 0px, 0) scale(1);
   }
-  35% {
-    transform: translate3d(68px, 0px, 0) scaleX(1.05) scaleY(0.98) rotate(1.5deg);
-  }
-  60% {
-    transform: translate3d(92px, 0px, 0) scaleX(1.09) scaleY(0.95) rotate(3deg);
-  }
-  82% {
-    transform: translate3d(48px, 0px, 0) scale(1.03);
+  50% {
+    transform: translate3d(18px, 0px, 0) scaleX(1.03) scaleY(0.98) rotate(1deg);
   }
 }
 
-/* Heavy Boss Tentacle Telegraph & Center Lunge along the ground toward Axie */
+/* Heavy Boss Tentacle Lunge along the ground — starts and ends at (0, 0, 0) */
 @keyframes monsterTentacleLunge {
   0%, 100% {
-    transform: translate3d(32px, 0px, 0) scale(1.02);
+    transform: translate3d(0px, 0px, 0) scale(1);
   }
-  35% {
-    transform: translate3d(84px, 0px, 0) scaleX(1.08) scaleY(0.96) rotate(-2deg);
-  }
-  58% {
-    transform: translate3d(116px, 0px, 0) scaleX(1.14) scaleY(0.92) rotate(5deg);
-  }
-  80% {
-    transform: translate3d(58px, 0px, 0) scale(1.04);
+  50% {
+    transform: translate3d(26px, 0px, 0) scaleX(1.05) scaleY(0.96) rotate(2deg);
   }
 }
 
-/* Fluid Spring-Physics Knockback & Physical Recoil along the ground when Boss reacts to 'حمله کن' */
+/*
+ * Ultra-Smooth Synchronized Hit Reaction on OctopusBoss / JellyGuardian:
+ * - 0% -> 24%: Stays at (0, 0, 0) while Axie dashes in and swings the sword down!
+ * - 24% -> 36%: Exact moment the sword blade touches OctopusBoss! Smooth impact squash & knockback (-34px)
+ * - 36% -> 62%: Smooth cushioned recoil slide (-42px)
+ * - 62% -> 84%: Smooth elastic rebound (-12px)
+ * - 84% -> 100%: Settles smoothly back to (0, 0, 0) with zero snapping!
+ */
 @keyframes monsterCloseHitShake {
   0% {
-    transform: translate3d(56px, 0px, 0) scale(1.06);
-    filter: brightness(2) drop-shadow(0 0 28px #FFD76B);
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
+    filter: brightness(1);
   }
-  18% {
-    transform: translate3d(-44px, 0px, 0) scaleX(0.84) scaleY(1.16) rotate(-10deg);
-    filter: brightness(1.75) drop-shadow(0 0 24px #FF84B2);
+  22% {
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
+    filter: brightness(1.05);
   }
-  38% {
-    transform: translate3d(-12px, 0px, 0) scaleX(1.12) scaleY(0.9) rotate(6deg);
-    filter: brightness(1.35);
+  34% {
+    transform: translate3d(-34px, 0px, 0) scaleX(0.89) scaleY(1.1) rotate(-7deg);
+    filter: brightness(1.55) drop-shadow(0 0 22px #FFD76B);
   }
-  58% {
-    transform: translate3d(-34px, 0px, 0) scaleX(0.94) scaleY(1.06) rotate(-6deg);
+  56% {
+    transform: translate3d(-44px, 0px, 0) scaleX(0.94) scaleY(1.05) rotate(-5deg);
+    filter: brightness(1.25) drop-shadow(0 0 14px #FF84B2);
   }
   78% {
-    transform: translate3d(-20px, 0px, 0) scale(0.98) rotate(-2deg);
+    transform: translate3d(-14px, 0px, 0) scaleX(1.02) scaleY(0.99) rotate(1.5deg);
+    filter: brightness(1.05);
   }
   100% {
-    transform: translate3d(-24px, 0px, 0) scale(0.96) rotate(-3deg);
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
     filter: brightness(1);
   }
 }
 
-/* Finite Hit Flash Burst (Never loops infinitely) */
+/* Finite Hit Flash Burst timed to sword contact (delay 0.16s) */
 @keyframes hitFlashBurst {
   0% {
-    transform: scale(0.6);
+    transform: scale(0.45);
+    opacity: 0;
+  }
+  20% {
+    transform: scale(0.85);
     opacity: 0.95;
   }
-  50% {
-    transform: scale(1.3);
+  60% {
+    transform: scale(1.28);
     opacity: 0.65;
   }
   100% {
-    transform: scale(1.65);
+    transform: scale(1.55);
     opacity: 0;
   }
 }
 
-/* Sword Slash Crescent Effect directly on Monster */
+/* Sword Slash Crescent Effect directly on Monster timed to sword contact */
 @keyframes slashCutArc {
   0% {
-    transform: scale(0.35) rotate(-32deg);
+    transform: scale(0.35) rotate(-28deg);
     opacity: 0;
   }
-  28% {
-    transform: scale(1.22) rotate(6deg);
+  22% {
+    transform: scale(0.5) rotate(-18deg);
+    opacity: 0;
+  }
+  38% {
+    transform: scale(1.24) rotate(6deg);
     opacity: 1;
   }
-  65% {
-    transform: scale(1.36) rotate(18deg);
+  70% {
+    transform: scale(1.36) rotate(16deg);
     opacity: 0.85;
   }
   100% {
-    transform: scale(1.5) rotate(26deg);
+    transform: scale(1.48) rotate(22deg);
     opacity: 0;
   }
 }
@@ -232,18 +255,18 @@
 /* Projectile flying smoothly from Monster (Left) to Axie (Right) */
 @keyframes projectileLeftToRight {
   0% {
-    transform: translate3d(-92px, -10px, 0) scale(0.82) rotate(0deg);
+    transform: translate3d(-80px, -10px, 0) scale(0.82) rotate(0deg);
     opacity: 0.3;
   }
   18% {
     opacity: 1;
   }
   78% {
-    transform: translate3d(96px, 2px, 0) scale(1.16) rotate(180deg);
+    transform: translate3d(84px, 2px, 0) scale(1.16) rotate(180deg);
     opacity: 1;
   }
   100% {
-    transform: translate3d(124px, -14px, 0) scale(1.3) rotate(260deg);
+    transform: translate3d(108px, -14px, 0) scale(1.3) rotate(260deg);
     opacity: 0;
   }
 }
@@ -251,11 +274,11 @@
 /* Projectile deflected by Axie's Shield flying from Right back into Monster (Left) */
 @keyframes projectileDeflectRightToLeft {
   0% {
-    transform: translate3d(92px, 0px, 0) scale(1.25);
+    transform: translate3d(80px, 0px, 0) scale(1.25);
     opacity: 1;
   }
   100% {
-    transform: translate3d(-108px, -18px, 0) scale(0.85);
+    transform: translate3d(-96px, -18px, 0) scale(0.85);
     opacity: 0;
   }
 }
@@ -263,23 +286,23 @@
 /* Curling Ocean Wave rolling strictly along the ground (Y = 0px) from Monster (Left) to Axie (Right) */
 @keyframes waveSweepLeftToRight {
   0% {
-    transform: translate3d(-170px, 0px, 0) scaleX(0.92) scaleY(0.88);
+    transform: translate3d(-160px, 0px, 0) scaleX(0.92) scaleY(0.88);
     opacity: 0.35;
   }
   18% {
-    transform: translate3d(-95px, 0px, 0) scaleX(1.02) scaleY(1.02);
+    transform: translate3d(-85px, 0px, 0) scaleX(1.02) scaleY(1.02);
     opacity: 1;
   }
   52% {
-    transform: translate3d(25px, 0px, 0) scaleX(1.08) scaleY(1.08);
+    transform: translate3d(20px, 0px, 0) scaleX(1.08) scaleY(1.08);
     opacity: 1;
   }
   82% {
-    transform: translate3d(135px, 0px, 0) scaleX(1.04) scaleY(1.02);
+    transform: translate3d(120px, 0px, 0) scaleX(1.04) scaleY(1.02);
     opacity: 0.96;
   }
   100% {
-    transform: translate3d(195px, 0px, 0) scaleX(0.96) scaleY(0.86);
+    transform: translate3d(175px, 0px, 0) scaleX(0.96) scaleY(0.86);
     opacity: 0;
   }
 }
@@ -299,6 +322,80 @@
   }
 }
 
+/* Specific OctopusBoss Telegraphing Attack Windup & Warning Glow ('سپر بگیر' cue) — starts and ends at (0,0,0) */
+@keyframes octopusTelegraphWindup {
+  0%, 100% {
+    transform: translate3d(0px, 0px, 0) scale(1);
+    filter: drop-shadow(0 0 10px rgba(255, 132, 178, 0.45));
+  }
+  35% {
+    transform: translate3d(-12px, 0px, 0) scaleX(0.95) scaleY(1.05) rotate(-3deg);
+    filter: drop-shadow(0 0 20px rgba(255, 132, 178, 0.9)) brightness(1.12);
+  }
+  68% {
+    transform: translate3d(24px, 0px, 0) scaleX(1.06) scaleY(0.96) rotate(3deg);
+    filter: drop-shadow(0 0 24px rgba(255, 215, 107, 0.9)) brightness(1.16);
+  }
+}
+
+/* OctopusBoss Dodge Animation when Boss is FAR ('از حمله جا خالی بده') — starts and ends smoothly at (0,0,0) */
+@keyframes octopusDodgeBack {
+  0% {
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
+  }
+  30% {
+    transform: translate3d(-64px, 0px, 0) scaleX(0.93) scaleY(1.06) rotate(-7deg);
+  }
+  68% {
+    transform: translate3d(-48px, 0px, 0) scale(0.97) rotate(-3deg);
+  }
+  100% {
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
+  }
+}
+
+/*
+ * Smooth Axie Walk Forward Stride ('برو جلو'):
+ * Notice X starts at 0px and ends at 0px while the outer position wrapper in BattleArena
+ * smoothly glides Axie forward and keeps Axie in that new forward spot with zero snap-back!
+ */
+@keyframes axieWalkForward {
+  0% {
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
+  }
+  25% {
+    transform: translate3d(0px, -7px, 0) scaleX(1.03) scaleY(0.98) rotate(-3deg);
+  }
+  50% {
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(1deg);
+  }
+  75% {
+    transform: translate3d(0px, -6px, 0) scaleX(1.02) scaleY(0.98) rotate(-2deg);
+  }
+  100% {
+    transform: translate3d(0px, 0px, 0) scale(1) rotate(0deg);
+  }
+}
+
+/* Coral Debris Scatter Particle Burst timed to sword impact */
+@keyframes coralDebrisScatter {
+  0%, 20% {
+    transform: translate3d(0px, 0px, 0) scale(0.3) rotate(0deg);
+    opacity: 0;
+  }
+  34% {
+    transform: translate3d(0px, 0px, 0) scale(0.85) rotate(25deg);
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.92;
+  }
+  100% {
+    transform: translate3d(var(--debris-x, 55px), var(--debris-y, -55px), 0) scale(1.1) rotate(var(--debris-rot, 145deg));
+    opacity: 0;
+  }
+}
+
 .animate-float-slow {
   transform-origin: bottom center;
   animation: floatSlow 3.2s ease-in-out infinite;
@@ -306,7 +403,7 @@
 
 .animate-axie-fluid-attack {
   transform-origin: bottom center;
-  animation: axieFluidAttackLunge 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: axieFluidAttackLunge 0.88s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .animate-sword-fluid-swing {
@@ -316,40 +413,40 @@
 
 .animate-axie-fluid-jump {
   transform-origin: bottom center;
-  animation: axieFluidJumpArc 1.05s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: axieFluidJumpArc 1.02s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .animate-axie-fluid-shield {
   transform-origin: bottom center;
-  animation: axieFluidShield 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: axieFluidShield 0.92s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .animate-axie-fluid-bubble {
   transform-origin: bottom center;
-  animation: axieFluidBubbleCast 1.05s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: axieFluidBubbleCast 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .animate-monster-charge {
   transform-origin: bottom center;
-  animation: monsterChargeForward 2.1s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+  animation: monsterChargeForward 2.4s ease-in-out infinite;
 }
 
 .animate-monster-tentacle-lunge {
   transform-origin: bottom center;
-  animation: monsterTentacleLunge 1.85s cubic-bezier(0.33, 1, 0.68, 1) infinite;
+  animation: monsterTentacleLunge 2.0s ease-in-out infinite;
 }
 
 .animate-monster-hit-closeup {
   transform-origin: bottom center;
-  animation: monsterCloseHitShake 0.82s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: monsterCloseHitShake 0.88s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .animate-hit-flash-burst {
-  animation: hitFlashBurst 0.65s ease-out forwards;
+  animation: hitFlashBurst 0.82s ease-out forwards;
 }
 
 .animate-slash-arc {
-  animation: slashCutArc 0.68s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: slashCutArc 0.84s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .animate-projectile-attack {
@@ -363,6 +460,25 @@
 .animate-wave-sweep {
   transform-origin: bottom center;
   animation: waveSweepLeftToRight 1.75s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+
+.animate-octopus-telegraph {
+  transform-origin: bottom center;
+  animation: octopusTelegraphWindup 1.65s ease-in-out infinite;
+}
+
+.animate-octopus-dodge {
+  transform-origin: bottom center;
+  animation: octopusDodgeBack 0.82s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-axie-walk-forward {
+  transform-origin: bottom center;
+  animation: axieWalkForward 0.62s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-coral-debris {
+  animation: coralDebrisScatter 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-pulse-ring {

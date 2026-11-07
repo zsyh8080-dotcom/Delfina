@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Award, Sparkles, Play, RotateCcw, Home } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Award, Sparkles, Play, RotateCcw, Home, Footprints } from 'lucide-react';
 import {
   BossBehaviorState,
   CombatState,
@@ -25,6 +25,7 @@ interface BattleArenaProps {
   onMicStateChange: (status: MicrophoneStatus) => void;
   onFinalTranscript: (transcript: string, isPracticeFallback: boolean) => void;
   onProceedAfterRound1Victory: () => void;
+  onToggleBossRange?: () => void;
 }
 
 interface AmbientBubble {
@@ -48,19 +49,37 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   onMicStateChange,
   onFinalTranscript,
   onProceedAfterRound1Victory,
+  onToggleBossRange,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const stepConfig = getCurrentStepConfig(state);
-  const isBubbleCasting = state.axieAnim === 'BubblePower';
-  const isAttacking = state.axieAnim === 'Attack';
-  const isShielding = state.axieAnim === 'Shield';
-  const isMonsterBeingHit =
-    state.jellyAnim === 'Hit' ||
-    state.octopusAnim === 'Hit' ||
-    state.octopusAnim === 'TrappedInBubble' ||
-    bossBehaviorState === 'HIT_RECOIL';
+  const [micVolume, setMicVolume] = useState<number>(0);
+  const [axieSteppedForward, setAxieSteppedForward] = useState<boolean>(false);
 
-  // Zero-GC Pooled 60fps Canvas Ambient Bubbles
+  const stepConfig = getCurrentStepConfig(state);
+  const isShielding = state.axieAnim === 'Shield';
+
+  // Keep track of smooth forward stride so Axie glides forward and stays forward without snapping back
+  useEffect(() => {
+    if (state.stepIndex === 0 && state.score === 0 && state.lastExecutedCommand === null) {
+      setAxieSteppedForward(false);
+    } else if (state.round === 2 && state.bossRange === 'FAR') {
+      setAxieSteppedForward(false);
+    } else if (
+      state.axieAnim === 'WalkForward' ||
+      state.lastExecutedCommand === 'MOVE_FORWARD'
+    ) {
+      setAxieSteppedForward(true);
+    }
+  }, [
+    state.round,
+    state.stepIndex,
+    state.score,
+    state.bossRange,
+    state.axieAnim,
+    state.lastExecutedCommand,
+  ]);
+
+  // Subtle, slow-moving visual bubble particles in the background canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -71,10 +90,10 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
     const pool: AmbientBubble[] = Array.from({ length: poolSize }, (_, i) => ({
       x: (i * 47) % 800,
       y: (i * 63) % 500,
-      r: 3 + (i % 7) * 1.5,
-      vy: 0.4 + (i % 5) * 0.25,
-      vx: ((i % 3) - 1) * 0.25,
-      alpha: 0.2 + (i % 5) * 0.1,
+      r: 2.5 + (i % 6) * 1.4,
+      vy: 0.22 + (i % 5) * 0.14,
+      vx: ((i % 3) - 1) * 0.15,
+      alpha: 0.18 + (i % 5) * 0.08,
       gold: i % 4 === 0,
     }));
 
@@ -133,28 +152,83 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
   const isMonsterAdvancing =
     state.phase === 'PLAYER_READY' && !state.gateOpened && !state.pearlFreed;
 
+  // Overhead Moving Health Bar for Axie (passed inside AxieCharacter so it moves with Axie's body)
+  const axieMovingHealthBar = (
+    <div
+      className="flex flex-col items-center gap-0.5 whitespace-nowrap"
+      data-testid="axie-floating-hp"
+    >
+      <span className="px-2.5 py-0.5 rounded-full bg-[#042f4b]/90 border border-[#39D5D0]/60 text-[10px] sm:text-xs font-extrabold text-[#A5F3FC] shadow">
+        آکسی (شوالیهٔ صدفی)
+      </span>
+      <div className="w-24 sm:w-28 bg-[#042f4b]/95 border border-[#39D5D0] rounded-full px-1.5 py-0.5 shadow-md">
+        <div className="w-full h-1.5 rounded-full bg-[#021c2e] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-l from-[#39D5D0] to-[#FF84B2] transition-all duration-300"
+            style={{
+              width: `${Math.round((state.axieHearts / state.axieMaxHearts) * 100)}%`,
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  // Overhead Moving Health Bar for Monster (passed inside JellyGuardian / OctopusBoss so it moves with their body)
+  const bossMovingHealthBar = (
+    <div
+      className="flex flex-col items-center gap-0.5 whitespace-nowrap"
+      data-testid="boss-floating-hp"
+    >
+      <span className="px-2.5 py-0.5 rounded-full bg-[#2E1065]/90 border border-[#C084FC]/60 text-[10px] sm:text-xs font-extrabold text-[#E9D5FF] shadow">
+        {state.round === 1 ? 'ژله‌خان (نگهبان دروازه)' : 'هشت‌پا (هیولای سکوت)'}
+      </span>
+      <div className="w-28 sm:w-32 bg-[#2E1065]/95 border border-[#C084FC] rounded-full px-2 py-0.5 shadow-md flex items-center gap-1.5">
+        <div className="flex-1 h-1.5 rounded-full bg-[#021c2e] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-l from-[#FF84B2] via-[#9333EA] to-[#FFD76B] transition-all duration-300"
+            style={{
+              width: `${Math.max(0, Math.round((state.enemyHp / state.enemyMaxHp) * 100))}%`,
+            }}
+          />
+        </div>
+        <span className="text-[10px] font-black text-[#FFD76B] tabular-nums" dir="ltr">
+          {state.enemyHp}%
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <div
       className="relative w-full h-screen max-h-screen overflow-hidden flex flex-col justify-between bg-[#042f4b] select-none"
       data-testid={`battle-arena-round-${state.round}`}
     >
-      {/* Background Key Art + Underwater Canvas Layer */}
-      <div className="absolute inset-0 pointer-events-none">
+      {/* Stationary Background Key Art + Underwater Canvas Layer ("موقع جلو رفتن محیط یکسان باشه") */}
+      <div
+        className="absolute inset-0 pointer-events-none overflow-hidden"
+        data-testid="underwater-bubble-bg-container"
+      >
         <img
           src={bgUrl}
           alt={state.round === 1 ? 'دروازهٔ صدفی' : 'تالار مرجانی هشت‌پا'}
           referrerPolicy="no-referrer"
-          className={`w-full h-full object-cover transition-transform duration-500 ${
-            isMonsterBeingHit ? 'scale-105 brightness-105' : 'scale-100'
-          }`}
+          data-testid="arena-scenery-bg"
+          className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-[#042f4b]/65 via-transparent to-[#042f4b]/55" />
-        <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          data-testid="ambient-bubbles-canvas"
+        />
       </div>
 
-      {/* Zone 1: Top Absolute HUD */}
+      {/* Zone 1: Top Absolute HUD with Volume Meter */}
       <GameHUD
         state={state}
+        micVolume={micVolume}
+        micStatus={state.micStatus}
         isMuted={isMuted}
         onToggleMute={onToggleMute}
         onTogglePause={onTogglePause}
@@ -164,9 +238,34 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
       {/* Zone 2: Ground-Anchored Playfield — Creatures stand directly on the sandy ocean floor & Wave rolls along the ground */}
       <main className="relative z-10 flex-1 w-full max-w-4xl mx-auto px-3 sm:px-4 pt-20 sm:pt-24 pb-1 sm:pb-3 flex flex-col justify-end overflow-hidden pointer-events-none">
+        {/* Round 2 Distance Indicator & Toggle (Near vs Far Dodge Mechanic) */}
+        {state.round === 2 && state.phase !== 'VICTORY' && (
+          <div className="w-full flex justify-center mb-1.5 pointer-events-auto">
+            <button
+              type="button"
+              onClick={onToggleBossRange}
+              data-testid="boss-range-toggle"
+              data-boss-range={state.bossRange}
+              className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-black border transition-all cursor-pointer shadow ${
+                state.bossRange === 'NEAR'
+                  ? 'bg-emerald-950/90 border-emerald-400 text-emerald-200'
+                  : 'bg-amber-950/90 border-[#FFD76B] text-[#FFD76B] animate-pulse'
+              }`}
+            >
+              <Footprints className="w-3.5 h-3.5" />
+              <span>
+                فاصله با هشت‌پا:{' '}
+                {state.bossRange === 'NEAR'
+                  ? 'نزدیک (آمادهٔ ضربه!)'
+                  : 'دور (بگو «برو جلو» تا جا خالی نده!)'}
+              </span>
+            </button>
+          </div>
+        )}
+
         {/* Single Unified Text Speech Bubble for Enemy */}
         {stepConfig.enemyDialogue && (
-          <div className="w-full flex justify-center mb-8 sm:mb-10 px-2">
+          <div className="w-full flex justify-center mb-4 sm:mb-6 px-2">
             <div
               className="relative max-w-xl rounded-2xl bg-[#2E1065]/92 border-2 border-[#C084FC] px-4 py-2 text-xs sm:text-sm md:text-base font-extrabold text-[#FFF8EE] shadow-xl text-right"
               data-testid="enemy-dialogue-bubble"
@@ -183,13 +282,9 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
           </div>
         )}
 
-        {/* Ground Stage Floor — Both Axie and the Monster stand directly on the sandy ground (bottom-0) */}
+        {/* Ground Stage Floor — Both Axie and the Monster stand directly on the sandy ground in close melee reach */}
         <div
-          className={`relative w-full max-w-2xl mx-auto flex items-end justify-center gap-3 sm:gap-8 md:gap-10 pt-6 pb-0 transition-transform duration-300 ease-out origin-bottom ${
-            isMonsterBeingHit || isAttacking || isBubbleCasting
-              ? 'scale-[1.08] sm:scale-[1.12]'
-              : 'scale-100'
-          }`}
+          className="relative w-full max-w-2xl mx-auto flex items-end justify-center gap-0 pt-4 pb-0"
           data-testid="arena-ground-stage"
         >
           {/* Natural Ground Contact Shadow on the Painted Sandy Seabed */}
@@ -198,36 +293,28 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
             data-testid="seabed-ground-floor"
           />
 
-          {/* Right Side (in RTL): Axie Character standing directly on the sandy ground */}
-          <div className="relative flex flex-col items-center justify-end z-20">
-            {/* Overhead Name + Health Bar (kept above Axie so feet sit 100% on the ground) */}
-            <div
-              className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5 z-30 whitespace-nowrap"
-              data-testid="axie-floating-hp"
-            >
-              <span className="px-2.5 py-0.5 rounded-full bg-[#042f4b]/90 border border-[#39D5D0]/60 text-[10px] sm:text-xs font-extrabold text-[#A5F3FC] shadow">
-                آکسی (شوالیهٔ صدفی)
-              </span>
-              <div className="w-24 sm:w-28 bg-[#042f4b]/95 border border-[#39D5D0] rounded-full px-1.5 py-0.5 shadow-md">
-                <div className="w-full h-1.5 rounded-full bg-[#021c2e] overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-l from-[#39D5D0] to-[#FF84B2] transition-all duration-300"
-                    style={{
-                      width: `${Math.round((state.axieHearts / state.axieMaxHearts) * 100)}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
+          {/* Right Side (in RTL): Axie Character with Smooth Persistent Forward Stride (no snap-back!) */}
+          <div
+            className={`relative flex flex-col items-center justify-end z-30 -ml-3 sm:-ml-5 transition-transform duration-500 ease-out ${
+              state.round === 2 && state.bossRange === 'FAR'
+                ? 'translate-x-6 sm:translate-x-10'
+                : axieSteppedForward
+                ? '-translate-x-8 sm:-translate-x-12'
+                : '-translate-x-2 sm:-translate-x-4'
+            }`}
+            data-testid="axie-ground-position"
+          >
             <AxieCharacter
               animation={state.axieAnim}
               swordGlowingGold={state.bubblePowerUnlocked}
+              comboCount={state.comboCount}
+              comboMultiplier={state.comboMultiplier}
+              floatingHealthBar={axieMovingHealthBar}
             />
           </div>
 
-          {/* Center Clash Zone between Axie and Monster (for Jelly-Ball projectiles) */}
-          <div className="relative flex items-center justify-center w-8 sm:w-14 h-32 z-30">
+          {/* Tight Center Clash Zone between Axie and Monster (for Jelly-Ball projectiles) */}
+          <div className="relative flex items-center justify-center w-2 sm:w-4 h-32 z-30">
             {showFlyingJellyBall && (
               <div
                 className="w-11 h-11 rounded-full bg-gradient-to-br from-[#FFF8EE] via-[#FF84B2] to-[#9333EA] border-4 border-white shadow-[0_0_25px_#FF84B2] animate-projectile-attack"
@@ -243,43 +330,19 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
             )}
           </div>
 
-          {/* Left Side (in RTL): Monster standing directly on the ground */}
+          {/* Left Side (in RTL): Monster with Smooth Ground Position (no sudden horizontal jumps when hit!) */}
           <div
-            className={`relative flex flex-col items-center justify-end z-20 transition-transform duration-300 ${
-              state.round === 2 &&
-              (bossBehaviorState === 'APPROACHING_CENTER' ||
-                bossBehaviorState === 'TELEGRAPHING_ATTACK')
-                ? 'translate-x-3 sm:translate-x-5'
-                : ''
+            className={`relative flex flex-col items-center justify-end z-20 -mr-3 sm:-mr-5 transition-transform duration-500 ease-out ${
+              state.round === 2 && state.bossRange === 'FAR'
+                ? '-translate-x-10 sm:-translate-x-16'
+                : 'translate-x-0'
             }`}
+            data-testid="monster-ground-position"
           >
-            {/* Overhead Name + Health Bar (kept above Monster so tentacles sit 100% on the ground) */}
-            <div
-              className="absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5 z-30 whitespace-nowrap"
-              data-testid="boss-floating-hp"
-            >
-              <span className="px-2.5 py-0.5 rounded-full bg-[#2E1065]/90 border border-[#C084FC]/60 text-[10px] sm:text-xs font-extrabold text-[#E9D5FF] shadow">
-                {state.round === 1 ? 'ژله‌خان (نگهبان دروازه)' : 'هشت‌پا (هیولای سکوت)'}
-              </span>
-              <div className="w-28 sm:w-32 bg-[#2E1065]/95 border border-[#C084FC] rounded-full px-2 py-0.5 shadow-md flex items-center gap-1.5">
-                <div className="flex-1 h-1.5 rounded-full bg-[#021c2e] overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-l from-[#FF84B2] via-[#9333EA] to-[#FFD76B] transition-all duration-300"
-                    style={{
-                      width: `${Math.max(0, Math.round((state.enemyHp / state.enemyMaxHp) * 100))}%`,
-                    }}
-                  />
-                </div>
-                <span className="text-[10px] font-black text-[#FFD76B] tabular-nums" dir="ltr">
-                  {state.enemyHp}%
-                </span>
-              </div>
-            </div>
-
             {/* Prominent Close-Up Impact Damage Callout directly on the Monster */}
             {state.lastFloatingDamage !== null && (
               <div
-                className="absolute -top-20 left-1/2 -translate-x-1/2 z-40 px-4 py-1 rounded-2xl bg-[#FFD76B] border-2 border-white text-[#042f4b] font-display text-xl sm:text-2xl shadow-[0_0_30px_#FFD76B] animate-pulse whitespace-nowrap tabular-nums"
+                className="absolute -top-14 left-1/2 -translate-x-1/2 z-40 px-4 py-1 rounded-2xl bg-[#FFD76B] border-2 border-white text-[#042f4b] font-display text-xl sm:text-2xl shadow-[0_0_30px_#FFD76B] animate-pulse whitespace-nowrap tabular-nums"
                 data-testid="floating-damage-number"
               >
                 💥 ضربه! -{state.lastFloatingDamage}
@@ -290,6 +353,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
               <JellyGuardian
                 animation={state.jellyAnim}
                 isAdvancingToAttack={isMonsterAdvancing}
+                floatingHealthBar={bossMovingHealthBar}
               />
             ) : (
               <OctopusBoss
@@ -297,6 +361,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                 bossBehaviorState={bossBehaviorState}
                 pearlFreed={state.pearlFreed}
                 isAdvancingToAttack={isMonsterAdvancing}
+                floatingHealthBar={bossMovingHealthBar}
               />
             )}
           </div>
@@ -327,13 +392,11 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                   </linearGradient>
                 </defs>
 
-                {/* Back Swell Crest */}
                 <path
                   d="M 10 110 Q 55 58 115 72 T 230 50 Q 290 34 330 68 Q 375 95 410 110 Z"
                   fill="url(#oceanWaveBackGrad)"
                 />
 
-                {/* Main Curling Ocean Wave with base flush at y=110 on the seabed floor */}
                 <path
                   d="M 0 110 C 45 104, 85 45, 150 32 C 205 20, 260 12, 295 36 C 318 52, 292 78, 268 68 C 254 62, 262 46, 278 48 C 250 36, 200 54, 175 78 C 225 76, 285 52, 345 42 C 378 36, 398 54, 380 72 C 398 84, 412 100, 420 110 Z"
                   fill="url(#oceanWaveBodyGrad)"
@@ -341,7 +404,6 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                   strokeWidth="2.5"
                 />
 
-                {/* Foaming Ground Surf Line hugging the seabed floor */}
                 <path
                   d="M -6 110 Q 105 103 210 109 T 426 110"
                   stroke="#FFF8EE"
@@ -351,7 +413,6 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                   opacity="0.92"
                 />
 
-                {/* White Curling Sea-Foam Caps on the Wave Crest */}
                 <path
                   d="M 132 36 Q 215 12 296 34 C 316 44, 304 68, 276 64 C 292 54, 284 40, 255 38 Q 195 32 132 36 Z"
                   fill="#FFF8EE"
@@ -363,7 +424,6 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                   opacity="0.92"
                 />
 
-                {/* Inner Wave Flow Ribbons */}
                 <path
                   d="M 55 98 Q 135 55 215 62"
                   stroke="#E0F7FA"
@@ -381,7 +441,6 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
                   opacity="0.7"
                 />
 
-                {/* Splashing Sea Foam Droplets ahead of the curling crest */}
                 <circle cx="316" cy="24" r="6" fill="#FFF8EE" />
                 <circle cx="334" cy="34" r="4.5" fill="#A5F3FC" />
                 <circle cx="298" cy="16" r="4" fill="#E0F7FA" />
@@ -396,7 +455,11 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
 
       {/* Zone 3: Bottom Cohesive Story & Voice Controller */}
       <VoiceController
-        expectedCommand={stepConfig.expectedCommand}
+        expectedCommand={
+          state.round === 2 && state.bossRange === 'FAR'
+            ? 'MOVE_FORWARD'
+            : stepConfig.expectedCommand
+        }
         bubblePowerUnlocked={state.bubblePowerUnlocked}
         difficulty={state.difficulty}
         disabled={
@@ -408,6 +471,7 @@ export const BattleArena: React.FC<BattleArenaProps> = ({
         feedbackMessage={state.lastFeedbackMessage}
         showSttDiagram={state.showSttDiagram}
         onMicStateChange={onMicStateChange}
+        onVolumeChange={setMicVolume}
         onFinalTranscript={onFinalTranscript}
       />
 

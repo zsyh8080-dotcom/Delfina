@@ -4,16 +4,18 @@ import { JellyAnimationState } from '../game/types';
 interface JellyGuardianProps {
   animation: JellyAnimationState;
   isAdvancingToAttack?: boolean;
+  floatingHealthBar?: React.ReactNode;
   className?: string;
 }
 
 /**
  * Jelly-Khan (ژله‌خان) — Friendly Bouncy Jellyfish Gate Guardian for Round 1
- * Includes close-up sword slash impact arc, starburst hit flash, and elastic deformation when hit!
+ * Includes moving overhead health bar, close-up sword slash impact arc, and grounded tentacles!
  */
 export const JellyGuardian: React.FC<JellyGuardianProps> = ({
   animation,
   isAdvancingToAttack = true,
+  floatingHealthBar,
   className = '',
 }) => {
   const isHit = animation === 'Hit';
@@ -30,7 +32,7 @@ export const JellyGuardian: React.FC<JellyGuardianProps> = ({
 
   return (
     <div
-      className={`relative select-none transition-transform duration-300 ease-out ${motionClass} ${className}`}
+      className={`relative select-none transition-transform duration-300 ease-out flex flex-col items-center ${motionClass} ${className}`}
       style={
         isStepAside
           ? { transform: 'translate3d(-85px, 0px, 0) scale(0.86) rotate(-8deg)' }
@@ -39,6 +41,11 @@ export const JellyGuardian: React.FC<JellyGuardianProps> = ({
       data-testid="jelly-guardian"
       data-animation={animation}
     >
+      {/* Floating Health Bar attached inside animated character container so it moves with Jelly-Khan */}
+      {floatingHealthBar && (
+        <div className="mb-1 z-30 pointer-events-none">{floatingHealthBar}</div>
+      )}
+
       {/* Close-Up Sword Impact Flash & Diagonal Slash Cut directly on Jelly-Khan */}
       {isHit && (
         <div

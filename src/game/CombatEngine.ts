@@ -196,6 +196,11 @@ export function createInitialCombatState(
     octopusAnim: round === 2 ? 'Idle' : 'Idle',
     gateOpened: false,
     pearlFreed: false,
+    micStatus: 'READY',
+    bossRange: 'NEAR',
+    comboCount: 0,
+    comboMultiplier: 1,
+    lastExecutedCommand: null,
   };
 }
 
@@ -222,7 +227,7 @@ export interface CommandExecutionOutcome {
  * Guarantees:
  * - Never executes while already in PLAYER_ACTION / ENEMY_ACTION / VICTORY / PAUSED
  * - Never lets enemyHp drop below 0
- * - Never penalizes hearts on UNKNOWN speech or in Round 1
+ * - Supports 'MOVE_FORWARD' («برو جلو»), Boss 'FAR' Dodge vs 'NEAR' Hit, and 1.5x Combo system
  */
 export function evaluateFinalSpeechCommand(
   currentState: CombatState,
@@ -231,7 +236,6 @@ export function evaluateFinalSpeechCommand(
   if (
     currentState.phase === 'PLAYER_ACTION' ||
     currentState.phase === 'ENEMY_ACTION' ||
-    currentState.phase === 'ROUND_COMPLETE' ||
     currentState.phase === 'VICTORY' ||
     currentState.phase === 'PAUSED'
   ) {
@@ -246,8 +250,21 @@ export function evaluateFinalSpeechCommand(
 
   const trimmed = (rawTranscript || '').trim();
   const step = getCurrentStepConfig(currentState);
+  const preParsed = parseVoiceCommand(trimmed, true, step.expectedCommand);
 
-  // Only reject if transcript is completely empty
+  if (
+    currentState.phase === 'ROUND_COMPLETE' &&
+    preParsed.command !== 'MOVE_FORWARD'
+  ) {
+    return {
+      nextState: currentState,
+      accepted: false,
+      reason: 'IGNORED_BUSY_PHASE',
+      parsedCommand: 'UNKNOWN',
+      normalizedTranscript: '',
+    };
+  }
+
   if (!trimmed) {
     return {
       nextState: {
@@ -264,19 +281,98 @@ export function evaluateFinalSpeechCommand(
     };
   }
 
-  // Parse with bubblePowerUnlocked = true so any command the player speaks is always allowed
   const parsed = parseVoiceCommand(trimmed, true, step.expectedCommand);
 
-  // "هر چیزی گفتم انجام بده":
-  // - If speech matched one of the 4 commands (ATTACK, SHIELD, JUMP, BUBBLE_POWER), execute that exact command!
-  // - If speech was any other spoken phrase/word, execute the current step's expected command so voice ALWAYS works!
   const executedCommand: Exclude<VoiceCommandType, 'UNKNOWN'> =
     parsed.command !== 'UNKNOWN' ? parsed.command : step.expectedCommand;
+
+  const displayRecognized =
+    parsed.normalizedText || trimmed || getCanonicalCommandLabel(executedCommand);
+
+  // Case A: Player says «برو جلو» (MOVE_FORWARD) — Axie steps forward, closes distance to NEAR, and primes the 1.5x Combo!
+  if (executedCommand === 'MOVE_FORWARD') {
+    return {
+      nextState: {
+        ...currentState,
+        phase: 'PLAYER_READY',
+        lastRecognizedText: displayRecognized,
+        lastFeedbackMessage:
+          currentState.round === 1 && currentState.gateOpened
+            ? 'آفرین! گفتی «برو جلو» و آکسی از دروازهٔ صدفی وارد تالار اصلی قلعه شد!'
+            : 'ایول! با فرمان «برو جلو» به دشمن نزدیک شدیم و کمبوی ویژه آماده شد! حالا بگو «حمله کن» تا با قدرت ۱.۵ برابر ضربه بزنیم!',
+        lastFloatingDamage: null,
+        axieAnim: 'WalkForward',
+        octopusAnim: 'Idle',
+        bossRange: 'NEAR',
+        comboCount: currentState.comboCount + 1,
+        comboMultiplier: 1.5,
+        lastExecutedCommand: 'MOVE_FORWARD',
+      },
+      accepted: true,
+      reason: 'SUCCESS',
+      parsedCommand: 'MOVE_FORWARD',
+      normalizedTranscript: displayRecognized,
+    };
+  }
+
+  // Case B: OctopusBoss is FAR ('وقتی دوره حمله کردنی از حمله جا خالی بده')
+  if (
+    currentState.round === 2 &&
+    currentState.bossRange === 'FAR' &&
+    executedCommand === 'ATTACK'
+  ) {
+    return {
+      nextState: {
+        ...currentState,
+        phase: 'PLAYER_READY',
+        lastRecognizedText: displayRecognized,
+        lastFeedbackMessage:
+          'هشت‌پا دور بود و از حمله جا خالی داد! اول بگو «برو جلو» تا بهش نزدیک بشیم، بعد بگو «حمله کن»!',
+        lastFloatingDamage: null,
+        axieAnim: 'Attack',
+        octopusAnim: 'Dodge',
+        comboCount: 0,
+        comboMultiplier: 1,
+        lastExecutedCommand: 'ATTACK',
+      },
+      accepted: false,
+      reason: 'WRONG_COMMAND_FOR_SITUATION',
+      parsedCommand: 'ATTACK',
+      normalizedTranscript: displayRecognized,
+    };
+  }
 
   const steps = currentState.round === 1 ? ROUND_1_STEPS : ROUND_2_STEPS;
   const isFinalStep = currentState.stepIndex >= steps.length - 1;
 
-  const baseDamage =
+  // Combo System:
+  // 1) 'برو جلو' followed by 'حمله کن' -> 1.5x (+50%) damage combo!
+  // 2) Consecutive 'حمله کن' commands -> increasing comboCount & sword glow!
+  let nextComboCount = 0;
+  let nextComboMultiplier = 1;
+  let isMoveForwardCombo = false;
+
+  if (executedCommand === 'ATTACK') {
+    if (currentState.lastExecutedCommand === 'MOVE_FORWARD') {
+      isMoveForwardCombo = true;
+      nextComboCount = Math.max(2, currentState.comboCount + 1);
+      nextComboMultiplier = 1.5;
+    } else if (currentState.lastExecutedCommand === 'ATTACK') {
+      nextComboCount = currentState.comboCount + 1;
+      nextComboMultiplier = Math.min(2.0, 1 + nextComboCount * 0.25);
+    } else {
+      nextComboCount = 1;
+      nextComboMultiplier = 1;
+    }
+  } else if (executedCommand === 'BUBBLE_POWER') {
+    nextComboCount = currentState.comboCount + 1;
+    nextComboMultiplier = 1.5;
+  } else {
+    nextComboCount = 0;
+    nextComboMultiplier = 1;
+  }
+
+  const rawDamage =
     step.damageToEnemy > 0
       ? step.damageToEnemy
       : executedCommand === 'BUBBLE_POWER'
@@ -284,6 +380,10 @@ export function evaluateFinalSpeechCommand(
       : executedCommand === 'ATTACK'
       ? 15
       : 0;
+
+  const baseDamage = isMoveForwardCombo
+    ? Math.round(rawDamage * 1.5)
+    : rawDamage;
 
   const newEnemyHp = isFinalStep
     ? 0
@@ -293,7 +393,12 @@ export function evaluateFinalSpeechCommand(
   const newStars = isFinalStep
     ? 3
     : Math.max(currentState.starsEarned, Math.min(2, Math.floor(completedRatio * 3)));
-  const scoreGain = executedCommand === 'BUBBLE_POWER' ? 20 : 10;
+
+  // Reasonable, child-friendly small scores (+2 for standard command, +4 for Bubble Power or Combo)
+  const scoreGain =
+    executedCommand === 'BUBBLE_POWER' || isMoveForwardCombo || nextComboCount >= 2
+      ? 4
+      : 2;
 
   let axieActionAnim: CombatState['axieAnim'] = 'Attack';
   if (executedCommand === 'SHIELD') axieActionAnim = 'Shield';
@@ -301,7 +406,9 @@ export function evaluateFinalSpeechCommand(
   if (executedCommand === 'BUBBLE_POWER') axieActionAnim = 'BubblePower';
 
   let feedbackReply = step.axieSuccessReply;
-  if (executedCommand !== step.expectedCommand) {
+  if (isMoveForwardCombo) {
+    feedbackReply = `کمبوی طوفانی! اول رفتی جلو و بعد گفتی «حمله کن»؛ ضربه‌ات ۵۰٪ قوی‌تر شد (-${baseDamage})!`;
+  } else if (executedCommand !== step.expectedCommand) {
     if (executedCommand === 'ATTACK') {
       feedbackReply = 'ایول! با فرمان «حمله کن» تو، شمشیر مرجانی درخشید و دشمن رو عقب زد!';
     } else if (executedCommand === 'SHIELD') {
@@ -312,9 +419,6 @@ export function evaluateFinalSpeechCommand(
       feedbackReply = 'عجب قدرتی! با فرمان «قدرت حبابی» تو، حباب‌های طلایی دشمن رو محاصره کردن!';
     }
   }
-
-  const displayRecognized =
-    parsed.normalizedText || trimmed || getCanonicalCommandLabel(executedCommand);
 
   return {
     nextState: {
@@ -351,6 +455,10 @@ export function evaluateFinalSpeechCommand(
           : currentState.octopusAnim,
       gateOpened: currentState.round === 1 && newEnemyHp === 0,
       pearlFreed: currentState.round === 2 && newEnemyHp === 0,
+      bossRange: 'NEAR',
+      comboCount: nextComboCount,
+      comboMultiplier: nextComboMultiplier,
+      lastExecutedCommand: executedCommand,
     },
     accepted: true,
     reason: 'SUCCESS',
@@ -364,10 +472,24 @@ export function evaluateFinalSpeechCommand(
  * after the action animation finishes.
  */
 export function advanceAfterPlayerAction(currentState: CombatState): CombatState {
+  if (
+    currentState.axieAnim === 'WalkForward' ||
+    currentState.octopusAnim === 'Dodge'
+  ) {
+    return {
+      ...currentState,
+      phase: 'PLAYER_READY',
+      axieAnim: 'Idle',
+      octopusAnim: 'Idle',
+      bossRange: currentState.axieAnim === 'WalkForward' ? 'NEAR' : currentState.bossRange,
+      lastFloatingDamage: null,
+    };
+  }
+
   const steps = currentState.round === 1 ? ROUND_1_STEPS : ROUND_2_STEPS;
   const nextStepIndex = currentState.stepIndex + 1;
 
-  if (nextStepIndex >= steps.length) {
+  if (nextStepIndex >= steps.length || currentState.enemyHp <= 0) {
     return {
       ...currentState,
       phase: currentState.round === 1 ? 'ROUND_COMPLETE' : 'VICTORY',
@@ -407,6 +529,7 @@ export function advanceAfterPlayerAction(currentState: CombatState): CombatState
     consecutiveWrongCommandsOnStep: 0,
     lastFeedbackMessage: nextStep.axiePrompt,
     lastFloatingDamage: null,
+    showSttDiagram: false,
     axieAnim: 'Idle',
     jellyAnim: nextJellyAnim,
     octopusAnim: nextOctopusAnim,

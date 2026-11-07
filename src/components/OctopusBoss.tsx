@@ -6,22 +6,36 @@ interface OctopusBossProps {
   bossBehaviorState?: BossBehaviorState;
   pearlFreed?: boolean;
   isAdvancingToAttack?: boolean;
+  floatingHealthBar?: React.ReactNode;
   className?: string;
 }
 
+const CORAL_DEBRIS_PIECES = [
+  { id: 1, dx: '-75px', dy: '-58px', rot: '-140deg', color: '#FF84B2', size: 11 },
+  { id: 2, dx: '82px', dy: '-64px', rot: '165deg', color: '#FFD76B', size: 13 },
+  { id: 3, dx: '-92px', dy: '24px', rot: '-95deg', color: '#39D5D0', size: 10 },
+  { id: 4, dx: '96px', dy: '18px', rot: '120deg', color: '#FB7185', size: 12 },
+  { id: 5, dx: '-42px', dy: '-88px', rot: '-65deg', color: '#C084FC', size: 9 },
+  { id: 6, dx: '48px', dy: '-82px', rot: '85deg', color: '#FDE047', size: 11 },
+  { id: 7, dx: '-58px', dy: '52px', rot: '-170deg', color: '#FFD76B', size: 10 },
+  { id: 8, dx: '64px', dy: '48px', rot: '145deg', color: '#39D5D0', size: 12 },
+];
+
 /**
  * Eight-Legged Monster of Silence (هشت‌پا، هیولای سکوت)
- * Grounded on the seabed floor with dynamic center-screen movement, telegraphic attack animations,
- * and fluid spring-physics hit recoil when reacting to 'حمله کن'!
+ * Grounded on the seabed floor with moving overhead health bar, telegraphic wind-up CSS keyframe animations,
+ * dodge animation when attacked from far away, and coral debris particle burst when taking a hit!
  */
 export const OctopusBoss: React.FC<OctopusBossProps> = ({
   animation,
   bossBehaviorState = 'APPROACHING_CENTER',
   pearlFreed = false,
   isAdvancingToAttack = false,
+  floatingHealthBar,
   className = '',
 }) => {
   const isHit = animation === 'Hit' || bossBehaviorState === 'HIT_RECOIL';
+  const isDodging = animation === 'Dodge' || bossBehaviorState === 'DODGING';
   const isDizzy = animation === 'Dizzy' || bossBehaviorState === 'DIZZY_STAGGER';
   const isTrappedInBubble =
     animation === 'TrappedInBubble' || bossBehaviorState === 'BUBBLE_TRAPPED';
@@ -34,43 +48,84 @@ export const OctopusBoss: React.FC<OctopusBossProps> = ({
 
   let manualTransform: string | undefined;
   if (isTrappedInBubble) {
-    manualTransform = 'translate3d(18px, -10px, 0) scale(0.98)';
+    manualTransform = 'translate3d(0px, -10px, 0) scale(0.98)';
   } else if (isDizzy) {
-    manualTransform = 'translate3d(38px, 0px, 0) rotate(5deg)';
+    manualTransform = 'translate3d(0px, 0px, 0) rotate(4deg)';
   }
 
   let motionClass = 'animate-float-slow';
   if (isHit) {
     motionClass = 'animate-monster-hit-closeup';
-  } else if (!manualTransform && !isHealed && (isAdvancingToAttack || isTelegraphing)) {
-    motionClass = isTelegraphTentacle
-      ? 'animate-monster-tentacle-lunge'
-      : 'animate-monster-charge';
+  } else if (isDodging) {
+    motionClass = 'animate-octopus-dodge';
+  } else if (!manualTransform && !isHealed && isTelegraphing) {
+    motionClass = 'animate-octopus-telegraph';
+  } else if (!manualTransform && !isHealed && isAdvancingToAttack) {
+    motionClass = 'animate-monster-charge';
   }
 
   return (
     <div
-      className={`relative select-none transition-transform duration-300 ease-out ${motionClass} ${className}`}
+      className={`relative select-none transition-transform duration-300 ease-out flex flex-col items-center ${motionClass} ${className}`}
       style={manualTransform ? { transform: manualTransform } : undefined}
       data-testid="octopus-boss"
       data-animation={animation}
       data-boss-state={bossBehaviorState}
     >
+      {/* Floating Health Bar attached inside animated character container so it moves with OctopusBoss */}
+      {floatingHealthBar && (
+        <div className="mb-1 z-30 pointer-events-none">{floatingHealthBar}</div>
+      )}
+
+      {/* Dodge Callout Badge when Attacked from Far Away */}
+      {isDodging && (
+        <div
+          className="absolute -top-6 z-40 px-3 py-1 rounded-full bg-amber-500 text-slate-950 font-black text-xs sm:text-sm border-2 border-[#FFF8EE] shadow-lg animate-bounce pointer-events-none whitespace-nowrap"
+          data-testid="octopus-dodge-badge"
+        >
+          💨 جا خالی داد! (اول بگو: برو جلو)
+        </div>
+      )}
+
       {/* Telegraphic Attack Warning Glow Ring on Ground when Telegraphing */}
       {isTelegraphing && !isHit && !isHealed && (
         <div
-          className="absolute -bottom-1 inset-x-2 h-5 rounded-full bg-[#FF84B2]/35 border border-[#FF84B2] blur-[1px] animate-pulse pointer-events-none"
+          className="absolute -bottom-1 inset-x-2 h-5 rounded-full bg-[#FF84B2]/45 border-2 border-[#FF84B2] shadow-[0_0_24px_#FF84B2] animate-pulse pointer-events-none"
           data-testid="boss-telegraph-ground-aura"
         />
       )}
 
-      {/* Close-Up Sword Slash Arc & Impact Starburst Directly on Octopus Boss when Hit */}
+      {/* Dynamic Coral Debris Particle System & Close-Up Sword Slash Arc when Hit */}
       {(isHit || isTrappedInBubble) && (
         <div
           className="absolute -inset-6 z-20 pointer-events-none flex items-center justify-center"
           data-testid="boss-closeup-hit-fx"
         >
           <div className="absolute inset-2 rounded-full bg-[#FFD76B]/45 blur-md animate-hit-flash-burst" />
+
+          {/* Coral Debris Particle System scattering outward on hit */}
+          <div
+            className="absolute inset-0 flex items-center justify-center overflow-visible"
+            data-testid="coral-debris-particles"
+          >
+            {CORAL_DEBRIS_PIECES.map((piece) => (
+              <span
+                key={piece.id}
+                className="absolute rounded-sm border border-[#FFF8EE]/80 shadow-sm animate-coral-debris"
+                style={
+                  {
+                    width: `${piece.size}px`,
+                    height: `${piece.size}px`,
+                    backgroundColor: piece.color,
+                    '--debris-x': piece.dx,
+                    '--debris-y': piece.dy,
+                    '--debris-rot': piece.rot,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+          </div>
+
           <svg
             viewBox="0 0 240 240"
             className="w-56 h-56 sm:w-64 sm:h-64 animate-slash-arc overflow-visible"
@@ -180,8 +235,8 @@ export const OctopusBoss: React.FC<OctopusBossProps> = ({
           rx="62"
           ry="58"
           fill="url(#octopusBodyGrad)"
-          stroke={isHit ? '#FFD76B' : '#C084FC'}
-          strokeWidth={isHit ? '5.5' : '3.5'}
+          stroke={isHit ? '#FFD76B' : isTelegraphing ? '#FF84B2' : '#C084FC'}
+          strokeWidth={isHit ? '5.5' : isTelegraphing ? '4.5' : '3.5'}
         />
         <circle cx="96" cy="102" r="8" fill="#C084FC" opacity="0.5" />
         <circle cx="176" cy="104" r="9" fill="#C084FC" opacity="0.5" />

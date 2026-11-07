@@ -1,606 +1,10 @@
-import { ParsedCommandResult, VoiceCommandType } from './types';
+import { VoiceCommandType } from './types';
 
-/**
- * Normalizes Persian text from Speech-to-Text engines:
- * - Converts Arabic Yeh/Kaf/Alef variants to standard Persian
- * - Strips diacritics, tashdid, and kashida (tatweel)
- * - Replaces ZWNJ (\u200c) and punctuation with spaces
- * - Collapses elongated repeated characters (e.g., "بپرررر" -> "بپر", "حملهههه" -> "حمله")
- */
-export function normalizePersianText(input: string): string {
-  if (!input || typeof input !== 'string') return '';
-
-  let text = input.trim();
-
-  // Arabic to Persian character unification
-  text = text
-    .replace(/[\u064A\u0649\u0626\u06CC]/g, 'ی') // ي ى ئ -> ی
-    .replace(/[\u0643\u06A9]/g, 'ک') // ك -> ک
-    .replace(/[\u0623\u0625\u0622]/g, 'ا') // أ إ آ -> ا
-    .replace(/\u0629/g, 'ه') // ة -> ه
-    .replace(/\u0640/g, '') // Tatweel / Kashida ـ
-    .replace(/[\u064B-\u065F\u0670]/g, ''); // Harakat & Tashdid
-
-  // Replace ZWNJ and punctuation with spaces
-  text = text.replace(/[\u200c\u200b\u00a0!؟?.,،؛:"'«»()[\]{}\-_\\/|]/g, ' ');
-
-  // Collapse 3+ identical consecutive letters caused by child stretching sound
-  text = text.replace(/(.)\1{2,}/g, '$1');
-
-  // Collapse multiple whitespaces
-  text = text.replace(/\s+/g, ' ').trim();
-
-  return text;
-}
-
-/**
- * Maps Persian text to a phonetic skeleton so homophone letters in Persian speech
- * (ح/ه, س/ص/ث, ت/ط, ز/ذ/ض/ظ, ق/غ) match identically even when Web Speech API
- * picks a homophone spelling.
- */
-export function toPersianPhoneticSkeleton(input: string): string {
-  const norm = normalizePersianText(input).replace(/\s+/g, '');
-  return norm
-    .replace(/[حه]/g, 'ه')
-    .replace(/[سصث]/g, 'س')
-    .replace(/[تط]/g, 'ت')
-    .replace(/[زذضظ]/g, 'ز')
-    .replace(/[قغ]/g, 'ق');
-}
-
-/**
- * Standard Levenshtein edit distance between two strings (used in open-source Persian voice command matchers).
- */
-export function levenshteinDistance(a: string, b: string): number {
-  if (a === b) return 0;
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-
-  const matrix: number[][] = Array.from({ length: a.length + 1 }, () =>
-    new Array(b.length + 1).fill(0)
-  );
-
-  for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
-  for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
-
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1, // deletion
-        matrix[i][j - 1] + 1, // insertion
-        matrix[i - 1][j - 1] + cost // substitution
-      );
-    }
-  }
-  return matrix[a.length][b.length];
-}
-
-export function stringSimilarity(a: string, b: string): number {
-  if (!a && !b) return 1;
-  if (!a || !b) return 0;
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) return 1;
-  const dist = levenshteinDistance(a, b);
-  return (maxLen - dist) / maxLen;
-}
-
-interface CommandDictionaryEntry {
-  command: Exclude<VoiceCommandType, 'UNKNOWN'>;
+export interface ParsedVoiceResult {
+  command: VoiceCommandType;
+  normalizedText: string;
   canonicalLabel: string;
-  exactPhrases: string[];
-  keywords: string[];
-}
-
-const COMMAND_DICTIONARY: CommandDictionaryEntry[] = [
-  {
-    command: 'BUBBLE_POWER',
-    canonicalLabel: 'قدرت حبابی',
-    exactPhrases: [
-      'قدرت حبابی',
-      'قدرته حبابی',
-      'قدرت حباب',
-      'غدرت حبابی',
-      'قدرت هبابی',
-      'غدرت هبابی',
-      'قدرت بابایی',
-      'قدرت هوایی',
-      'قدرت آبی',
-      'قدرت حبابی کن',
-      'قدرت حبابی بکن',
-      'حباب جادویی',
-      'حباب طلایی',
-      'حباب ها رو بفرست',
-      'حبابها رو بفرست',
-      'شلیک حباب',
-      'ضربه حبابی',
-      'حباب کن',
-      'حباب بکن',
-      'حبابی',
-      'حباب',
-    ],
-    keywords: [
-      'قدرت حبابی',
-      'حباب جادویی',
-      'حباب طلایی',
-      'حبابها رو بفرست',
-      'حباب ها رو بفرست',
-      'قدرت حباب',
-      'قدرت بابایی',
-      'قدرت هوایی',
-      'ضربه حبابی',
-      'حباب بکن',
-      'حباب کن',
-      'حبابی',
-      'حباب',
-    ],
-  },
-  {
-    command: 'SHIELD',
-    canonicalLabel: 'سپر بگیر',
-    exactPhrases: [
-      'سپر بگیر',
-      'سپربگیر',
-      'سپر بگی',
-      'سپه بگیر',
-      'سپر بکن',
-      'سپر کن',
-      'سپر',
-      'دفاع کن',
-      'دفاع بکن',
-      'دفاع',
-      'سپر جادویی',
-      'سپرت رو بگیر',
-      'سپرو بگیر',
-      'سپر و بگیر',
-      'سه پر بگیر',
-      'سه پر بکن',
-      'سه پر',
-      'سفر بگیر',
-      'صفر بگیر',
-      'پسر بگیر',
-      'تبر بگیر',
-      'چتر بگیر',
-      'سپر رو بگیر',
-      'محافظت کن',
-      'جلوشو بگیر',
-    ],
-    keywords: [
-      'سپر بگیر',
-      'سپر بکن',
-      'دفاع کن',
-      'دفاع بکن',
-      'سه پر بگیر',
-      'سفر بگیر',
-      'صفر بگیر',
-      'پسر بگیر',
-      'سپرو بگیر',
-      'جلوشو بگیر',
-      'سپر',
-      'دفاع',
-      'محافظت',
-    ],
-  },
-  {
-    command: 'JUMP',
-    canonicalLabel: 'بپر بکن',
-    exactPhrases: [
-      'بپر بکن',
-      'بپربکن',
-      'بپر کن',
-      'بپرکن',
-      'به پر بکن',
-      'به پر کن',
-      'پر بکن',
-      'ببر بکن',
-      'پپر بکن',
-      'بفر بکن',
-      'بهتر بکن',
-      'پدر بکن',
-      'بپر',
-      'بپره',
-      'بپرو',
-      'بپرید',
-      'به پر',
-      'ببر',
-      'به بر',
-      'پپر',
-      'بفر',
-      'بپا',
-      'پرش بکن',
-      'پرش کن',
-      'پرش',
-      'بپر بالا',
-      'بالا بپر',
-      'جاخالی بده',
-      'جا خالی بده',
-      'جاخالی بکن',
-      'از روش بپر',
-      'بجه بکن',
-      'بجه',
-      'پریدن',
-    ],
-    keywords: [
-      'بپر بکن',
-      'بپربکن',
-      'بپر کن',
-      'به پر بکن',
-      'پر بکن',
-      'ببر بکن',
-      'بفر بکن',
-      'بهتر بکن',
-      'بپر بالا',
-      'بپر',
-      'بپره',
-      'بپرو',
-      'به پر',
-      'پپر',
-      'بفر',
-      'بپا',
-      'پرش بکن',
-      'پرش کن',
-      'پرش',
-      'جاخالی',
-      'جا خالی',
-      'بجه',
-      'پریدن',
-    ],
-  },
-  {
-    command: 'ATTACK',
-    canonicalLabel: 'حمله کن',
-    exactPhrases: [
-      'حمله کن',
-      'حمله‌کن',
-      'حمله بکن',
-      'حمله',
-      'همله کن',
-      'همله بکن',
-      'همله',
-      'امله کن',
-      'امله بکن',
-      'حمل کن',
-      'حامله کن',
-      'خمله کن',
-      'کمله کن',
-      'حمله کون',
-      'حمله کنید',
-      'همه کن',
-      'همه بکن',
-      'همه رو کن',
-      'هم له کن',
-      'شمشیر بزن',
-      'شمشیر بکن',
-      'ضربه بزن',
-      'ضربه بکن',
-      'شمشیر جادویی',
-      'بزن',
-      'شمشیر',
-      'ضربه',
-    ],
-    keywords: [
-      'حمله کن',
-      'حمله بکن',
-      'همله کن',
-      'همله بکن',
-      'حمل کن',
-      'حامله کن',
-      'خمله کن',
-      'شمشیر بزن',
-      'ضربه بزن',
-      'همه کن',
-      'هم له کن',
-      'حمله',
-      'همله',
-      'شمشیر',
-      'ضربه',
-      'بزن',
-    ],
-  },
-];
-
-/**
- * Controlled Persian command parser with Gboard-style Phonetic Skeleton, Substring & Levenshtein Fuzzy Matching.
- * Carefully distinguishes "بپر بکن / بپر" (JUMP, labial initial ب/پ) from "سپر بگیر" (SHIELD, sibilant initial س/ص).
- */
-export function parseVoiceCommand(
-  rawText: string,
-  bubblePowerUnlocked = false,
-  expectedCommand?: VoiceCommandType
-): ParsedCommandResult {
-  const normalizedText = normalizePersianText(rawText);
-
-  if (!normalizedText) {
-    return {
-      rawText,
-      normalizedText: '',
-      command: 'UNKNOWN',
-      matchedPhrase: null,
-      isLockedBubblePower: false,
-      canonicalLabel: 'نامشخص',
-    };
-  }
-
-  const tokens = normalizedText.split(' ');
-  const inputPhonetic = toPersianPhoneticSkeleton(normalizedText);
-
-  // 1. Check exact or phonetic-skeleton exact match first
-  for (const entry of COMMAND_DICTIONARY) {
-    for (const phrase of entry.exactPhrases) {
-      const normPhrase = normalizePersianText(phrase);
-      const phrasePhonetic = toPersianPhoneticSkeleton(phrase);
-      if (normalizedText === normPhrase || inputPhonetic === phrasePhonetic) {
-        if (entry.command === 'BUBBLE_POWER' && !bubblePowerUnlocked) {
-          return {
-            rawText,
-            normalizedText,
-            command: 'BUBBLE_POWER',
-            matchedPhrase: phrase,
-            isLockedBubblePower: true,
-            canonicalLabel: entry.canonicalLabel,
-          };
-        }
-        return {
-          rawText,
-          normalizedText,
-          command: entry.command,
-          matchedPhrase: phrase,
-          isLockedBubblePower: false,
-          canonicalLabel: entry.canonicalLabel,
-        };
-      }
-    }
-  }
-
-  // 2. Careful disambiguation if "بپر / بپر بکن" or "سپر / سپر بگیر" appear in the transcript
-  const hasBepar =
-    tokens.includes('بپر') ||
-    tokens.includes('بپربکن') ||
-    tokens.includes('بپره') ||
-    tokens.includes('بپرو') ||
-    tokens.includes('بپرید') ||
-    tokens.includes('پپر') ||
-    tokens.includes('پرش') ||
-    normalizedText.includes('بپر بکن') ||
-    normalizedText.includes('به پر') ||
-    normalizedText.includes('پر بکن') ||
-    normalizedText.includes('ببر بکن') ||
-    normalizedText.includes('جاخالی');
-  const hasSepar =
-    tokens.includes('سپر') ||
-    tokens.includes('سپرو') ||
-    tokens.includes('سپربگیر') ||
-    tokens.includes('دفاع') ||
-    normalizedText.includes('سه پر') ||
-    normalizedText.includes('سفر بگیر') ||
-    normalizedText.includes('صفر بگیر');
-
-  if (hasBepar && !hasSepar) {
-    return {
-      rawText,
-      normalizedText,
-      command: 'JUMP',
-      matchedPhrase: normalizedText.includes('بکن') ? 'بپر بکن' : 'بپر',
-      isLockedBubblePower: false,
-      canonicalLabel: 'بپر بکن',
-    };
-  }
-
-  if (hasSepar && !hasBepar) {
-    return {
-      rawText,
-      normalizedText,
-      command: 'SHIELD',
-      matchedPhrase: 'سپر بگیر',
-      isLockedBubblePower: false,
-      canonicalLabel: 'سپر بگیر',
-    };
-  }
-
-  // 3. Controlled keyword/token matching inside utterances (<= 12 words)
-  if (tokens.length <= 12) {
-    for (const entry of COMMAND_DICTIONARY) {
-      for (const kw of entry.keywords) {
-        const normKw = normalizePersianText(kw);
-        const kwTokens = normKw.split(' ');
-        const matchesAllTokens = kwTokens.every((kt) => tokens.includes(kt));
-        if (matchesAllTokens) {
-          if (entry.command === 'BUBBLE_POWER' && !bubblePowerUnlocked) {
-            return {
-              rawText,
-              normalizedText,
-              command: 'BUBBLE_POWER',
-              matchedPhrase: kw,
-              isLockedBubblePower: true,
-              canonicalLabel: entry.canonicalLabel,
-            };
-          }
-          return {
-            rawText,
-            normalizedText,
-            command: entry.command,
-            matchedPhrase: kw,
-            isLockedBubblePower: false,
-            canonicalLabel: entry.canonicalLabel,
-          };
-        }
-      }
-    }
-  }
-
-  // 4. Soft-Voice / Whisper Partial-Syllable Matcher (صدای یواش)
-  // Matches ONLY distinctive root syllables of each command (never auxiliary verbs like "کن" or "بکن" alone!)
-  if (tokens.length <= 5) {
-    const hasSoftAttack =
-      normalizedText.includes('حمل') ||
-      normalizedText.includes('همل') ||
-      normalizedText.includes('امل') ||
-      normalizedText.includes('مله') ||
-      normalizedText.includes('شمشیر') ||
-      normalizedText.includes('ضربه') ||
-      normalizedText.includes('همه کن') ||
-      normalizedText.includes('هم له') ||
-      tokens.includes('بزن');
-
-    const hasSoftShield =
-      normalizedText.includes('سپر') ||
-      normalizedText.includes('سپه') ||
-      normalizedText.includes('سه پر') ||
-      normalizedText.includes('سفر') ||
-      normalizedText.includes('صفر') ||
-      normalizedText.includes('دفاع') ||
-      normalizedText.includes('دفا') ||
-      normalizedText.includes('محافظ') ||
-      tokens.includes('بگیر') ||
-      tokens.includes('بگی');
-
-    const hasSoftJump =
-      normalizedText.includes('بپر') ||
-      normalizedText.includes('به پر') ||
-      normalizedText.includes('پپر') ||
-      normalizedText.includes('ببر') ||
-      normalizedText.includes('پرش') ||
-      normalizedText.includes('پر بکن') ||
-      normalizedText.includes('پر کن') ||
-      normalizedText.includes('بجه') ||
-      normalizedText.includes('جاخالی') ||
-      normalizedText.includes('جا خالی') ||
-      tokens.includes('پر') ||
-      tokens.includes('بالا');
-
-    const hasSoftBubble =
-      normalizedText.includes('حباب') ||
-      normalizedText.includes('هباب') ||
-      normalizedText.includes('اباب') ||
-      normalizedText.includes('بابی') ||
-      normalizedText.includes('قدرت') ||
-      normalizedText.includes('غدرت') ||
-      tokens.includes('طلایی') ||
-      tokens.includes('جادویی');
-
-    // Match unambiguous soft-voice root stems directly (without letting expectedCommand override a different spoken root!)
-    if (hasSoftBubble && !hasSoftAttack && !hasSoftShield && !hasSoftJump) {
-      return {
-        rawText,
-        normalizedText,
-        command: 'BUBBLE_POWER',
-        matchedPhrase: 'قدرت حبابی',
-        isLockedBubblePower: !bubblePowerUnlocked,
-        canonicalLabel: 'قدرت حبابی',
-      };
-    }
-    if (hasSoftShield && !hasSoftJump && !hasSoftAttack && !hasSoftBubble) {
-      return {
-        rawText,
-        normalizedText,
-        command: 'SHIELD',
-        matchedPhrase: 'سپر بگیر',
-        isLockedBubblePower: false,
-        canonicalLabel: 'سپر بگیر',
-      };
-    }
-    if (hasSoftJump && !hasSoftShield && !hasSoftAttack && !hasSoftBubble) {
-      return {
-        rawText,
-        normalizedText,
-        command: 'JUMP',
-        matchedPhrase: 'بپر بکن',
-        isLockedBubblePower: false,
-        canonicalLabel: 'بپر بکن',
-      };
-    }
-    if (hasSoftAttack && !hasSoftShield && !hasSoftJump && !hasSoftBubble) {
-      return {
-        rawText,
-        normalizedText,
-        command: 'ATTACK',
-        matchedPhrase: 'حمله کن',
-        isLockedBubblePower: false,
-        canonicalLabel: 'حمله کن',
-      };
-    }
-  }
-
-  // 5. Root-Stem Levenshtein Fuzzy Matching on phonetic skeletons (<= 4 words)
-  // Strips shared auxiliary verbs ("بکن", "کن", "بگیر", "بده") before comparing so commands NEVER cross-match on suffixes!
-  const stripAuxVerbs = (s: string) =>
-    normalizePersianText(s)
-      .split(' ')
-      .filter((w) => w !== 'کن' && w !== 'بکن' && w !== 'کنید' && w !== 'بده')
-      .join(' ');
-
-  const rootInputPhonetic = toPersianPhoneticSkeleton(stripAuxVerbs(normalizedText) || normalizedText);
-
-  if (tokens.length <= 4 && rootInputPhonetic.length >= 2) {
-    let bestEntry: CommandDictionaryEntry | null = null;
-    let bestPhrase: string | null = null;
-    let bestScore = 0;
-
-    for (const entry of COMMAND_DICTIONARY) {
-      for (const phrase of entry.exactPhrases) {
-        const targetRoot = stripAuxVerbs(phrase) || phrase;
-        const targetPhonetic = toPersianPhoneticSkeleton(targetRoot);
-        if (targetPhonetic.length < 2) continue;
-
-        // Strict initial-consonant family guard so JUMP (ب/پ/ج), SHIELD (س/د/م), ATTACK (ه/ا/ش/ز/بز), and BUBBLE (ق/ه) never cross-match
-        const firstChar = rootInputPhonetic[0];
-        if (entry.command === 'JUMP' && !['ب', 'پ', 'ج'].includes(firstChar)) {
-          continue;
-        }
-        if (entry.command === 'SHIELD' && !['س', 'د', 'م'].includes(firstChar)) {
-          continue;
-        }
-        if (entry.command === 'ATTACK' && !['ه', 'ا', 'ش', 'ز', 'ب'].includes(firstChar)) {
-          continue;
-        }
-        if (entry.command === 'ATTACK' && firstChar === 'ب' && !rootInputPhonetic.startsWith('بز')) {
-          continue;
-        }
-        if (entry.command === 'BUBBLE_POWER' && !['ق', 'ه', 'ا'].includes(firstChar)) {
-          continue;
-        }
-
-        const sim = stringSimilarity(rootInputPhonetic, targetPhonetic);
-        const threshold = 0.74;
-
-        if (sim >= threshold && sim > bestScore) {
-          bestScore = sim;
-          bestEntry = entry;
-          bestPhrase = phrase;
-        }
-      }
-    }
-
-    if (bestEntry && bestPhrase) {
-      if (bestEntry.command === 'BUBBLE_POWER' && !bubblePowerUnlocked) {
-        return {
-          rawText,
-          normalizedText,
-          command: 'BUBBLE_POWER',
-          matchedPhrase: bestPhrase,
-          isLockedBubblePower: true,
-          canonicalLabel: bestEntry.canonicalLabel,
-        };
-      }
-      return {
-        rawText,
-        normalizedText,
-        command: bestEntry.command,
-        matchedPhrase: bestPhrase,
-        isLockedBubblePower: false,
-        canonicalLabel: bestEntry.canonicalLabel,
-      };
-    }
-  }
-
-  return {
-    rawText,
-    normalizedText,
-    command: 'UNKNOWN',
-    matchedPhrase: null,
-    isLockedBubblePower: false,
-    canonicalLabel: 'نامشخص',
-  };
+  isLockedBubblePower: boolean;
 }
 
 export interface VoiceRecognitionCandidate {
@@ -609,69 +13,461 @@ export interface VoiceRecognitionCandidate {
 }
 
 /**
- * Evaluates Web Speech API alternatives in strict confidence order (alt[0] first)
- * so a lower-confidence alternative NEVER overrides the word the player actually spoke!
+ * Normalizes Persian/Arabic characters, removes diacritics, punctuation, ZWNJ,
+ * and collapses 3+ repeated characters (e.g., "حملهههه کننن" -> "حمله کن").
  */
-export function parseVoiceAlternatives(
-  alternatives: string[],
-  bubblePowerUnlocked = false,
-  expectedCommand?: VoiceCommandType
-): ParsedCommandResult {
-  if (!alternatives || alternatives.length === 0) {
-    return parseVoiceCommand('', bubblePowerUnlocked, expectedCommand);
-  }
+export function normalizePersianText(raw: string): string {
+  if (!raw) return '';
 
-  for (const alt of alternatives) {
-    const res = parseVoiceCommand(alt, bubblePowerUnlocked, expectedCommand);
-    if (res.command !== 'UNKNOWN') {
-      return res;
-    }
-  }
-
-  return parseVoiceCommand(alternatives[0], bubblePowerUnlocked, expectedCommand);
+  return raw
+    .trim()
+    .toLowerCase()
+    // Normalize Arabic Yeh / Alef Maksura / Kashmiri Yeh to Persian Yeh (ی)
+    .replace(/[\u064A\u0649\u06CC\u06D2]/g, 'ی')
+    // Normalize Arabic Kaf to Persian Kaf (ک)
+    .replace(/[\u0643\u06A9]/g, 'ک')
+    // Normalize Alef variants (آ، أ، إ، ٱ) to simple Alef (ا)
+    .replace(/[\u0622\u0623\u0625\u0671]/g, 'ا')
+    // Normalize Teh Marbuta (ة) and Heh goal (ۀ) to Heh (ه)
+    .replace(/[\u0629\u06C0\u06BE]/g, 'ه')
+    // Normalize Waw with Hamza (ؤ) to Waw (و)
+    .replace(/\u0624/g, 'و')
+    // Remove Arabic/Persian diacritics (Tashdid, Fatha, Kasra, Damma, Tanwin, Maddah)
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+    // Replace zero-width non-joiner (ZWNJ) and punctuation with space
+    .replace(/[\u200C\u200B\u200D\u00A0.,!؟?،؛:;"'«»()[\]{}\-_+=/\\|~`@#$%^&*<>]/g, ' ')
+    // Collapse 3+ repeated identical Persian letters (e.g., "سپررر" -> "سپر", while keeping "جادویی")
+    .replace(/(.)\1{2,}/g, '$1')
+    // Collapse multiple spaces
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
- * Evaluates Web Speech API candidates using a confidence threshold check (default 0.35)
- * to minimize misinterpretations of commands like 'حمله کن', 'سپر بگیر', and 'بپر'.
- * Note: Web Speech API reports confidence === 0 on interim or uncalibrated browsers,
- * which is treated as uncalibrated and allowed if it matches a dictionary phrase.
+ * Converts normalized Persian text into a phonetic skeleton so words that sound identical
+ * in Persian speech-to-text (e.g. حمله / همله, غدرت / قدرت, حبابی / هبابی, سپر / صپر)
+ * map to the exact same acoustic representation.
  */
-export function parseVoiceAlternativesWithConfidence(
-  candidates: VoiceRecognitionCandidate[],
-  bubblePowerUnlocked = false,
-  confidenceThreshold = 0.35
-): ParsedCommandResult {
-  if (!candidates || candidates.length === 0) {
-    return parseVoiceCommand('', bubblePowerUnlocked);
+export function toPersianPhoneticSkeleton(normalized: string): string {
+  if (!normalized) return '';
+  return normalized
+    .replace(/[حهه]/g, 'ه')
+    .replace(/[غق]/g, 'ق')
+    .replace(/[سصث]/g, 'س')
+    .replace(/[زذضظ]/g, 'ز')
+    .replace(/[تط]/g, 'ت');
+}
+
+/**
+ * Computes Levenshtein edit distance between two strings for fuzzy Persian speech tolerance.
+ */
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+export const COMMAND_CANONICAL_LABELS: Record<Exclude<VoiceCommandType, 'UNKNOWN'>, string> = {
+  MOVE_FORWARD: 'برو جلو',
+  ATTACK: 'حمله کن',
+  SHIELD: 'سپر بگیر',
+  JUMP: 'بپر بکن',
+  BUBBLE_POWER: 'قدرت حبابی',
+};
+
+/**
+ * Rich dictionary of colloquial, child-friendly, and common Web Speech API (fa-IR)
+ * acoustic homophones for each command.
+ * Note: 'برو' alone is intentionally NOT in MOVE_FORWARD so it never steals 'بپر'.
+ */
+const COMMAND_PATTERNS: Record<Exclude<VoiceCommandType, 'UNKNOWN'>, string[]> = {
+  MOVE_FORWARD: [
+    'برو جلو',
+    'بروجلو',
+    'جلو برو',
+    'جلوبرو',
+    'بیا جلو',
+    'قدم بزن',
+    'قدم جلو',
+    'حرکت کن',
+    'برو سمتش',
+    'برو داخل',
+    'رد شو',
+  ],
+  BUBBLE_POWER: [
+    'قدرت حبابی',
+    'قدرت حباب',
+    'حباب جادویی',
+    'حباب طلایی',
+    'ضربه حبابی',
+    'حمله حبابی',
+    'قدرت هبابی',
+    'غدرت حبابی',
+    'قدرت بابایی',
+    'قدرت هوایی',
+    'قدرت کبابی',
+    'حبابی',
+    'حباب',
+    'هباب',
+  ],
+  ATTACK: [
+    'حمله کن',
+    'حمله',
+    'همله کن',
+    'همله',
+    'حامله کن',
+    'حامله',
+    'همه کن',
+    'خمله کن',
+    'خمله',
+    'حمل کن',
+    'بزن',
+    'شمشیر',
+    'شمشیر بزن',
+    'ضربه بزن',
+    'ضربه',
+    'بهش بزن',
+  ],
+  SHIELD: [
+    'سپر بگیر',
+    'سپر',
+    'سپربگیر',
+    'سپربگی',
+    'سپر بگی',
+    'سه پر بگیر',
+    'سه پر',
+    'سفر بگیر',
+    'سفر بگی',
+    'صفر بگیر',
+    'پسر بگیر',
+    'سوپر بگیر',
+    'سپر کن',
+    'دفاع کن',
+    'دفاع',
+    'محافظت',
+    'سپر صدفی',
+    'بگیر سپر',
+  ],
+  JUMP: [
+    'بپر بکن',
+    'بپربکن',
+    'به پر بکن',
+    'بفر بکن',
+    'به فر بکن',
+    'بهتر بکن',
+    'بپر کن',
+    'بپرکن',
+    'پرش بکن',
+    'بپر',
+    'بپر بالا',
+    'پرش',
+    'پرش کن',
+    'بجه',
+    'بپر هوا',
+    'از روش بپر',
+    'به پر',
+    'بفر',
+    'پبر',
+    'پپر',
+    'ببر',
+    'پریدن',
+  ],
+};
+
+// Core stems for fuzzy word/phrase matching
+const CORE_STEMS: {
+  type: Exclude<VoiceCommandType, 'UNKNOWN'>;
+  stem: string;
+  maxDist: number;
+  requiredInitials?: string[];
+}[] = [
+  { type: 'MOVE_FORWARD', stem: 'بروجلو', maxDist: 2, requiredInitials: ['ب', 'ج'] },
+  { type: 'MOVE_FORWARD', stem: 'جلوبرو', maxDist: 2, requiredInitials: ['ج', 'ب'] },
+  { type: 'BUBBLE_POWER', stem: 'قدرتهبابی', maxDist: 3 },
+  { type: 'BUBBLE_POWER', stem: 'هبابی', maxDist: 1 },
+  { type: 'ATTACK', stem: 'هملهکن', maxDist: 2, requiredInitials: ['ه', 'خ'] },
+  { type: 'ATTACK', stem: 'همله', maxDist: 1, requiredInitials: ['ه', 'خ'] },
+  { type: 'ATTACK', stem: 'شمشیر', maxDist: 2, requiredInitials: ['ش'] },
+  { type: 'SHIELD', stem: 'سپربگیر', maxDist: 2, requiredInitials: ['س', 'پ'] },
+  { type: 'SHIELD', stem: 'سپربگی', maxDist: 2, requiredInitials: ['س', 'پ'] },
+  { type: 'SHIELD', stem: 'سفربگیر', maxDist: 2, requiredInitials: ['س'] },
+  { type: 'SHIELD', stem: 'پسربگیر', maxDist: 2, requiredInitials: ['پ'] },
+  { type: 'SHIELD', stem: 'سپر', maxDist: 1, requiredInitials: ['س'] },
+  { type: 'SHIELD', stem: 'دفاع', maxDist: 1, requiredInitials: ['د'] },
+  { type: 'JUMP', stem: 'بپربکن', maxDist: 2, requiredInitials: ['ب', 'پ'] },
+  { type: 'JUMP', stem: 'بفربکن', maxDist: 2, requiredInitials: ['ب'] },
+  { type: 'JUMP', stem: 'بهتربکن', maxDist: 2, requiredInitials: ['ب'] },
+  { type: 'JUMP', stem: 'بپرکن', maxDist: 2, requiredInitials: ['ب', 'پ'] },
+  { type: 'JUMP', stem: 'پرشبکن', maxDist: 2, requiredInitials: ['پ'] },
+  { type: 'JUMP', stem: 'بپر', maxDist: 1, requiredInitials: ['ب', 'پ'] },
+  { type: 'JUMP', stem: 'پرش', maxDist: 1, requiredInitials: ['پ'] },
+];
+
+/**
+ * Parses a raw Persian transcript into a canonical game voice command.
+ */
+export function parseVoiceCommand(
+  rawTranscript: string,
+  bubblePowerUnlocked: boolean,
+  expectedCommandHint?: Exclude<VoiceCommandType, 'UNKNOWN'>
+): ParsedVoiceResult {
+  const normalized = normalizePersianText(rawTranscript);
+
+  if (!normalized) {
+    return {
+      command: 'UNKNOWN',
+      normalizedText: '',
+      canonicalLabel: '',
+      isLockedBubblePower: false,
+    };
   }
 
-  // First pass: check high-confidence (or uncalibrated confidence === 0) candidates in rank order
-  for (const item of candidates) {
-    const conf = typeof item.confidence === 'number' ? item.confidence : 0;
-    if (conf === 0 || conf >= confidenceThreshold) {
-      const res = parseVoiceCommand(item.transcript, bubblePowerUnlocked);
-      if (res.command !== 'UNKNOWN') {
+  const compact = normalized.replace(/\s+/g, '');
+  const phoneticNormalized = toPersianPhoneticSkeleton(normalized);
+  const phoneticCompact = phoneticNormalized.replace(/\s+/g, '');
+
+  const commandOrder: Exclude<VoiceCommandType, 'UNKNOWN'>[] = [
+    'MOVE_FORWARD',
+    'BUBBLE_POWER',
+    'SHIELD',
+    'JUMP',
+    'ATTACK',
+  ];
+
+  // 1. Exact or direct substring / phonetic match against pattern lists
+  for (const cmdType of commandOrder) {
+    const patterns = COMMAND_PATTERNS[cmdType];
+    for (const rawPattern of patterns) {
+      const pNorm = normalizePersianText(rawPattern);
+      const pCompact = pNorm.replace(/\s+/g, '');
+      const pPhonetic = toPersianPhoneticSkeleton(pNorm);
+      const pPhoneticCompact = pPhonetic.replace(/\s+/g, '');
+
+      if (
+        normalized === pNorm ||
+        normalized.includes(pNorm) ||
+        compact.includes(pCompact) ||
+        phoneticNormalized === pPhonetic ||
+        phoneticNormalized.includes(pPhonetic) ||
+        phoneticCompact.includes(pPhoneticCompact)
+      ) {
+        if (cmdType === 'BUBBLE_POWER' && !bubblePowerUnlocked) {
+          return {
+            command: 'BUBBLE_POWER',
+            normalizedText: normalized,
+            canonicalLabel: COMMAND_CANONICAL_LABELS.BUBBLE_POWER,
+            isLockedBubblePower: true,
+          };
+        }
+        return {
+          command: cmdType,
+          normalizedText: normalized,
+          canonicalLabel: COMMAND_CANONICAL_LABELS[cmdType],
+          isLockedBubblePower: false,
+        };
+      }
+    }
+  }
+
+  // 2. Soft-voice / whispered (صدای یواش) partial syllable detection
+  if (
+    compact.includes('بروجلو') ||
+    compact.includes('جلوبرو') ||
+    compact.includes('بیاجلو') ||
+    (expectedCommandHint === 'MOVE_FORWARD' &&
+      (normalized.includes('جلو') || compact.includes('حرکت')))
+  ) {
+    return {
+      command: 'MOVE_FORWARD',
+      normalizedText: normalized,
+      canonicalLabel: COMMAND_CANONICAL_LABELS.MOVE_FORWARD,
+      isLockedBubblePower: false,
+    };
+  }
+
+  if (
+    compact.startsWith('سپ') ||
+    compact.startsWith('سهپ') ||
+    compact.includes('سپر') ||
+    (compact.includes('بگیر') && !compact.startsWith('بپ'))
+  ) {
+    return {
+      command: 'SHIELD',
+      normalizedText: normalized,
+      canonicalLabel: COMMAND_CANONICAL_LABELS.SHIELD,
+      isLockedBubblePower: false,
+    };
+  }
+
+  if (
+    compact.startsWith('بپ') ||
+    compact.startsWith('بهپ') ||
+    compact.startsWith('بفرب') ||
+    compact.includes('بپرب') ||
+    compact.includes('پربکن') ||
+    compact.includes('پرش')
+  ) {
+    return {
+      command: 'JUMP',
+      normalizedText: normalized,
+      canonicalLabel: COMMAND_CANONICAL_LABELS.JUMP,
+      isLockedBubblePower: false,
+    };
+  }
+
+  if (
+    phoneticCompact.startsWith('همل') ||
+    phoneticCompact.includes('همله') ||
+    compact.includes('حمل') ||
+    compact.includes('شمش') ||
+    compact.includes('ضرب')
+  ) {
+    return {
+      command: 'ATTACK',
+      normalizedText: normalized,
+      canonicalLabel: COMMAND_CANONICAL_LABELS.ATTACK,
+      isLockedBubblePower: false,
+    };
+  }
+
+  if (
+    phoneticCompact.includes('هباب') ||
+    phoneticCompact.includes('قدرت') ||
+    compact.includes('حباب')
+  ) {
+    return {
+      command: 'BUBBLE_POWER',
+      normalizedText: normalized,
+      canonicalLabel: COMMAND_CANONICAL_LABELS.BUBBLE_POWER,
+      isLockedBubblePower: !bubblePowerUnlocked,
+    };
+  }
+
+  // 3. Fuzzy Levenshtein check on individual words and full phonetic phrase
+  const words = phoneticNormalized.split(' ');
+  const candidates = [...words, phoneticCompact];
+
+  for (const candidate of candidates) {
+    if (candidate.length < 2) continue;
+    for (const { type, stem, maxDist, requiredInitials } of CORE_STEMS) {
+      if (
+        requiredInitials &&
+        requiredInitials.length > 0 &&
+        !requiredInitials.includes(candidate[0])
+      ) {
+        continue;
+      }
+
+      const dist = levenshteinDistance(candidate, stem);
+      if (dist <= maxDist) {
+        if (type === 'BUBBLE_POWER' && !bubblePowerUnlocked) {
+          return {
+            command: 'BUBBLE_POWER',
+            normalizedText: normalized,
+            canonicalLabel: COMMAND_CANONICAL_LABELS.BUBBLE_POWER,
+            isLockedBubblePower: true,
+          };
+        }
+        return {
+          command: type,
+          normalizedText: normalized,
+          canonicalLabel: COMMAND_CANONICAL_LABELS[type],
+          isLockedBubblePower: false,
+        };
+      }
+    }
+  }
+
+  return {
+    command: 'UNKNOWN',
+    normalizedText: normalized,
+    canonicalLabel: '',
+    isLockedBubblePower: false,
+  };
+}
+
+export interface SpeechAlternativeInput {
+  transcript: string;
+  confidence?: number;
+}
+
+/**
+ * Evaluates multiple Web Speech API alternatives (including confidence scores)
+ * and picks the first recognized command.
+ */
+export function parseVoiceAlternativesWithConfidence(
+  alternatives: SpeechAlternativeInput[],
+  bubblePowerUnlocked: boolean,
+  minConfidence: number = 0.25,
+  expectedCommandHint?: Exclude<VoiceCommandType, 'UNKNOWN'>
+): ParsedVoiceResult {
+  if (!alternatives || alternatives.length === 0) {
+    return {
+      command: 'UNKNOWN',
+      normalizedText: '',
+      canonicalLabel: '',
+      isLockedBubblePower: false,
+    };
+  }
+
+  const confidentAlternatives = alternatives.filter((alt, idx) => {
+    if (idx === 0) return true;
+    if (typeof alt.confidence !== 'number' || alt.confidence === 0) return true;
+    return alt.confidence >= minConfidence;
+  });
+
+  const pool = confidentAlternatives.length > 0 ? confidentAlternatives : alternatives;
+
+  let lockedBubbleMatch: ParsedVoiceResult | null = null;
+  for (const alt of pool) {
+    const res = parseVoiceCommand(alt.transcript, bubblePowerUnlocked, expectedCommandHint);
+    if (res.command !== 'UNKNOWN') {
+      if (res.isLockedBubblePower) {
+        lockedBubbleMatch = lockedBubbleMatch || res;
+      } else {
         return res;
       }
     }
   }
 
-  // Second pass: if all candidates had 0 < confidence < threshold, check top candidate only
-  return parseVoiceCommand(candidates[0].transcript, bubblePowerUnlocked);
+  if (lockedBubbleMatch) return lockedBubbleMatch;
+
+  return parseVoiceCommand(pool[0]?.transcript || '', bubblePowerUnlocked, expectedCommandHint);
 }
 
-export function getCanonicalCommandLabel(cmd: VoiceCommandType): string {
-  switch (cmd) {
-    case 'ATTACK':
-      return 'حمله کن';
-    case 'SHIELD':
-      return 'سپر بگیر';
-    case 'JUMP':
-      return 'بپر بکن';
-    case 'BUBBLE_POWER':
-      return 'قدرت حبابی';
-    default:
-      return 'نامشخص';
-  }
+/**
+ * Evaluates multiple string alternatives from Web Speech API and picks the best match.
+ */
+export function parseVoiceAlternatives(
+  transcripts: string[],
+  bubblePowerUnlocked: boolean,
+  expectedCommandHint?: Exclude<VoiceCommandType, 'UNKNOWN'>
+): ParsedVoiceResult {
+  return parseVoiceAlternativesWithConfidence(
+    (transcripts || []).map((t) => ({ transcript: t, confidence: 1 })),
+    bubblePowerUnlocked,
+    0,
+    expectedCommandHint
+  );
+}
+
+export function getCanonicalCommandLabel(cmd: Exclude<VoiceCommandType, 'UNKNOWN'>): string {
+  return COMMAND_CANONICAL_LABELS[cmd];
 }

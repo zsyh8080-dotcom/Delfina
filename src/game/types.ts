@@ -1,4 +1,10 @@
-export type VoiceCommandType = 'ATTACK' | 'SHIELD' | 'JUMP' | 'BUBBLE_POWER' | 'UNKNOWN';
+export type VoiceCommandType =
+  | 'ATTACK'
+  | 'SHIELD'
+  | 'JUMP'
+  | 'BUBBLE_POWER'
+  | 'MOVE_FORWARD'
+  | 'UNKNOWN';
 
 export type BattlePhase =
   | 'INTRO'
@@ -24,6 +30,7 @@ export type AxieAnimationState =
   | 'Shield'
   | 'Jump'
   | 'BubblePower'
+  | 'WalkForward'
   | 'Hit'
   | 'Victory'
   | 'Confused'
@@ -43,6 +50,7 @@ export type OctopusAnimationState =
   | 'TelegraphWave'
   | 'Dizzy'
   | 'Hit'
+  | 'Dodge'
   | 'TrappedInBubble'
   | 'HealedHappy';
 
@@ -50,6 +58,7 @@ export type BossBehaviorState =
   | 'APPROACHING_CENTER'
   | 'TELEGRAPHING_ATTACK'
   | 'HIT_RECOIL'
+  | 'DODGING'
   | 'DIZZY_STAGGER'
   | 'BUBBLE_TRAPPED'
   | 'DEFEATED';
@@ -77,7 +86,8 @@ export type GameScreen =
   | 'ROUND_2'
   | 'ENDING_STORY'
   | 'LEARNING_SUMMARY'
-  | 'QUIZ';
+  | 'QUIZ'
+  | 'VICTORY_SCREEN';
 
 export interface ParsedCommandResult {
   rawText: string;
@@ -125,6 +135,11 @@ export interface CombatState {
   octopusAnim: OctopusAnimationState;
   gateOpened: boolean;
   pearlFreed: boolean;
+  micStatus?: MicrophoneStatus;
+  bossRange: 'NEAR' | 'FAR';
+  comboCount: number;
+  comboMultiplier: number;
+  lastExecutedCommand: VoiceCommandType | null;
 }
 
 export interface GameProgress {

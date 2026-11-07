@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Mic, MicOff, Volume2, RotateCcw } from 'lucide-react';
+import { Mic, MicOff, RotateCcw } from 'lucide-react';
 import {
   DifficultyMode,
   MicrophoneStatus,
@@ -62,20 +62,18 @@ interface VoiceControllerProps {
   showSttDiagram: boolean;
   onMicStateChange: (status: MicrophoneStatus) => void;
   onFinalTranscript: (transcript: string, isPracticeFallback: boolean) => void;
+  onVolumeChange?: (volume: number) => void;
 }
 
 const CONFIDENCE_THRESHOLD = 0.35;
-const INTERMITTENT_SILENCE_DEBOUNCE_MS = 230;
 const MAX_SILENCE_RESTARTS = 4;
 
 export const VoiceController: React.FC<VoiceControllerProps> = ({
   expectedCommand,
-  bubblePowerUnlocked,
   difficulty,
   disabled,
   lastRecognizedText,
   feedbackMessage,
-  showSttDiagram,
   onMicStateChange,
   onFinalTranscript,
 }) => {
@@ -102,7 +100,7 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
       finalDeliveredInTurnRef.current = false;
       setLiveInterimText('');
     }
-  }, [disabled, expectedCommand]);
+  }, [disabled, expectedCommand, feedbackMessage, lastRecognizedText]);
 
   useEffect(() => {
     expectedCommandRef.current = expectedCommand;
@@ -177,7 +175,7 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
    */
   const deliverTranscript = useCallback(
     (transcript: string, isRuneTap = false) => {
-      if (finalDeliveredInTurnRef.current || disabledRef.current) return;
+      if ((!isRuneTap && finalDeliveredInTurnRef.current) || disabledRef.current) return;
       const finalStr = (transcript || '').trim();
       if (!finalStr) return;
 
@@ -191,8 +189,8 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
   );
 
   /**
-   * Evaluates collected Web Speech API candidates using the confidence threshold check
-   * (CONFIDENCE_THRESHOLD = 0.35) to prevent misinterpreting commands like 'حمله کن', 'سپر بگیر', and 'بپر'.
+   * Evaluates collected Web Speech API candidates using the exact confidence threshold check
+   * from the previous working version.
    */
   const evaluateAndCommitCandidates = useCallback(() => {
     if (finalDeliveredInTurnRef.current || disabledRef.current) return false;
@@ -210,7 +208,6 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
       return true;
     }
 
-    // If user spoke a clear non-empty utterance with sufficient confidence, pass it through
     const topCandidate = candidates[0];
     if (
       topCandidate &&
@@ -301,10 +298,7 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
   }, [deliverTranscript, updateStatus]);
 
   /**
-   * Starts Persian ('fa-IR') Web Speech Recognition with:
-   * - Confidence threshold filtering (CONFIDENCE_THRESHOLD = 0.35)
-   * - Intermittent silence handling (seamless loop continuation on brief pauses, 230ms debounce after speech)
-   * - Zero interruption to game audio effects
+   * Exact Persian ('fa-IR') Web Speech Recognition loop from the previous working version!
    */
   const startPersianSpeechRecognition = useCallback(() => {
     if (disabledRef.current) return;
@@ -409,9 +403,7 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
             window.clearTimeout(silenceTimerRef.current);
           }
           silenceTimerRef.current = window.setTimeout(() => {
-            if (!evaluateAndCommitCandidates()) {
-              // If speech ended during an intermittent pause with no command yet, let onend handle continuation
-            }
+            evaluateAndCommitCandidates();
           }, 140);
         };
 
@@ -435,13 +427,10 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
             return;
           }
 
-          // If user already spoke and paused, commit their recognized command and exit LISTENING
           if (latestCandidatesRef.current.length > 0 && evaluateAndCommitCandidates()) {
             return;
           }
 
-          // Intermittent silence handling: if the user hasn't finished speaking yet,
-          // keep the recognition loop alive seamlessly without dropping LISTENING state
           if (silenceRestartCountRef.current < MAX_SILENCE_RESTARTS) {
             silenceRestartCountRef.current += 1;
             restartTimerRef.current = window.setTimeout(() => {
@@ -462,17 +451,13 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
 
     spawnRecognitionCycle();
   }, [
+    deliverTranscript,
     evaluateAndCommitCandidates,
     startFallbackRecorderOnlyWhenNoSpeechApi,
     stopActiveRecognitionSession,
     updateStatus,
   ]);
 
-  /**
-   * Reliable Microphone Toggle:
-   * Clicking the microphone button cleanly toggles LISTENING on/off without silencing game audio.
-   * If words were already spoken while listening, toggling off commits them immediately.
-   */
   const handleMicButtonTap = () => {
     if (disabled) return;
 
@@ -486,10 +471,6 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
     }
 
     startPersianSpeechRecognition();
-  };
-
-  const handleReadBubbleAloud = () => {
-    gameAudio.speakPersian(feedbackMessage);
   };
 
   const statusMeta: Record<
@@ -556,6 +537,7 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
   const displayedHeardText = liveInterimText || lastRecognizedText;
 
   const availableCommands: { cmd: Exclude<VoiceCommandType, 'UNKNOWN'>; label: string }[] = [
+    { cmd: 'MOVE_FORWARD', label: 'برو جلو' },
     { cmd: 'ATTACK', label: 'حمله کن' },
     { cmd: 'SHIELD', label: 'سپر بگیر' },
     { cmd: 'JUMP', label: 'بپر بکن' },
@@ -564,13 +546,22 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
 
   return (
     <div
-      className="relative z-20 w-full max-w-4xl mx-auto px-2.5 sm:px-3 pb-2 pt-0.5 select-none pointer-events-auto space-y-1.5"
+      className="relative z-20 w-full max-w-4xl mx-auto px-2.5 sm:px-3 pb-2 pt-0.5 select-none pointer-events-auto space-y-1"
       data-testid="voice-controller"
       data-mic-status={micStatus}
     >
+      {/* Speaker Label Above Axie's Dialogue Bubble ("دیالوگای آکسی بالاش بنویس آکسی:") */}
+      <div className="flex items-center justify-between px-2">
+        <span
+          className="inline-flex items-center gap-1 px-3 py-0.5 rounded-t-xl bg-[#39D5D0] text-[#042f4b] font-black text-xs sm:text-sm shadow"
+          data-testid="axie-dialogue-speaker-label"
+        >
+          آکسی:
+        </span>
+      </div>
+
       {/* Row 1: Pure Single-Part Story Speech Bubble ("حباب ها داخلیش دو قسمتی نباشه فقط یه متن واحد باشه") */}
       <div className="relative rounded-2xl sm:rounded-3xl bg-[#042f4b]/95 border-2 border-[#39D5D0] shadow-[0_6px_18px_rgba(0,0,0,0.55)] px-4 py-2 sm:px-5 sm:py-2.5 text-right">
-        {/* Speech bubble pointer tail pointing up toward Axie on the right */}
         <div className="absolute -top-2.5 right-12 w-4 h-4 bg-[#042f4b] border-t-2 border-r-2 border-[#39D5D0] rotate-[-45deg] pointer-events-none" />
 
         <p
@@ -583,22 +574,11 @@ export const VoiceController: React.FC<VoiceControllerProps> = ({
 
       {/* Row 2: Compact External Voice & Armor Control Dock (Outside the Speech Bubble!) */}
       <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-2xl bg-[#032238]/95 border border-[#39D5D0]/60 shadow-lg">
-        {/* Right/Center in RTL: Speaker + Listen Status + Armor Runes */}
         <div className="flex-1 min-w-0 flex flex-col gap-1.5">
           <div
             className="flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs"
             data-testid="what-ai-heard-bubble"
           >
-            <button
-              type="button"
-              onClick={handleReadBubbleAloud}
-              aria-label="شنیدن صدای جمله"
-              data-testid="read-bubble-aloud-btn"
-              className="w-7 h-7 rounded-lg bg-[#074268] hover:bg-[#09588a] border border-[#39D5D0]/60 flex items-center justify-center text-[#39D5D0] shrink-0 cursor-pointer"
-            >
-              <Volume2 className="w-3.5 h-3.5" />
-            </button>
-
             {/* Dedicated Listen Status Area */}
             <div
               className="flex items-center gap-1 shrink-0"

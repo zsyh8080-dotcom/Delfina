@@ -5,28 +5,38 @@ interface AxieCharacterProps {
   animation: AxieAnimationState;
   isSpeaking?: boolean;
   swordGlowingGold?: boolean;
+  comboCount?: number;
+  comboMultiplier?: number;
+  floatingHealthBar?: React.ReactNode;
   className?: string;
 }
 
 /**
  * Axie — The Sea Axolotl Shell Knight (آکسی، شوالیهٔ صدفی)
+ * Includes overhead moving health bar, WalkForward animation, and growing combo sword glow!
  */
 export const AxieCharacter: React.FC<AxieCharacterProps> = ({
   animation,
   isSpeaking = false,
   swordGlowingGold = false,
+  comboCount = 0,
+  comboMultiplier = 1,
+  floatingHealthBar,
   className = '',
 }) => {
   const isJumping = animation === 'Jump';
   const isAttacking = animation === 'Attack';
   const isShielding = animation === 'Shield';
   const isBubblePower = animation === 'BubblePower';
+  const isWalkingForward = animation === 'WalkForward';
   const isListening = animation === 'Listening';
-  const isThinking = animation === 'Thinking';
   const isConfused = animation === 'Confused';
   const isVictory = animation === 'Victory' || animation === 'Celebrate';
   const isGreeting = animation === 'Greeting';
   const isHit = animation === 'Hit';
+
+  const hasComboGlow = comboCount >= 1 || comboMultiplier > 1;
+  const comboIntensity = Math.min(3, Math.max(comboCount, comboMultiplier > 1 ? 2 : 0));
 
   // Multi-phase fluid animation classes per action state
   let motionClass = 'animate-float-slow';
@@ -34,6 +44,7 @@ export const AxieCharacter: React.FC<AxieCharacterProps> = ({
   else if (isJumping) motionClass = 'animate-axie-fluid-jump';
   else if (isShielding) motionClass = 'animate-axie-fluid-shield';
   else if (isBubblePower) motionClass = 'animate-axie-fluid-bubble';
+  else if (isWalkingForward) motionClass = 'animate-axie-walk-forward';
 
   let fallbackTransform: string | undefined;
   if (isHit) fallbackTransform = 'translate3d(32px, 4px, 0) rotate(8deg) scale(0.94)';
@@ -41,13 +52,18 @@ export const AxieCharacter: React.FC<AxieCharacterProps> = ({
 
   return (
     <div
-      className={`relative select-none transition-transform duration-300 ease-out ${motionClass} ${className}`}
+      className={`relative select-none transition-transform duration-300 ease-out flex flex-col items-center ${motionClass} ${className}`}
       style={fallbackTransform ? { transform: fallbackTransform } : undefined}
       data-testid="axie-character"
       data-animation={animation}
     >
-      {/* Golden Bubble Power Aura when unlocked or casting */}
-      {(swordGlowingGold || isBubblePower) && (
+      {/* Floating Health Bar attached inside animated character container so it moves with Axie */}
+      {floatingHealthBar && (
+        <div className="mb-1 z-30 pointer-events-none">{floatingHealthBar}</div>
+      )}
+
+      {/* Golden Bubble Power / Combo Aura when unlocked or casting */}
+      {(swordGlowingGold || isBubblePower || comboIntensity >= 2) && (
         <div className="absolute -inset-4 rounded-full bg-amber-300/30 blur-xl animate-pulse pointer-events-none" />
       )}
 
@@ -80,9 +96,24 @@ export const AxieCharacter: React.FC<AxieCharacterProps> = ({
             <stop offset="100%" stopColor="#FFD76B" />
           </linearGradient>
           <linearGradient id="coralSwordGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor={swordGlowingGold || isBubblePower ? '#FFF3B0' : '#A5F3FC'} />
-            <stop offset="50%" stopColor={swordGlowingGold || isBubblePower ? '#FFD76B' : '#39D5D0'} />
-            <stop offset="100%" stopColor={swordGlowingGold || isBubblePower ? '#F59E0B' : '#087EB7'} />
+            <stop
+              offset="0%"
+              stopColor={
+                swordGlowingGold || isBubblePower || comboIntensity >= 2 ? '#FFF3B0' : '#A5F3FC'
+              }
+            />
+            <stop
+              offset="50%"
+              stopColor={
+                swordGlowingGold || isBubblePower || comboIntensity >= 2 ? '#FFD76B' : '#39D5D0'
+              }
+            />
+            <stop
+              offset="100%"
+              stopColor={
+                swordGlowingGold || isBubblePower || comboIntensity >= 2 ? '#F59E0B' : '#087EB7'
+              }
+            />
           </linearGradient>
           <linearGradient id="capeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#087EB7" />
@@ -102,7 +133,7 @@ export const AxieCharacter: React.FC<AxieCharacterProps> = ({
         {/* Floating Short Blue Cape */}
         <path
           d={
-            isJumping || isAttacking
+            isJumping || isAttacking || isWalkingForward
               ? 'M 95 110 Q 155 118 176 164 Q 140 175 112 162 Z'
               : 'M 95 112 Q 145 125 162 174 Q 130 182 108 168 Z'
           }
@@ -141,10 +172,14 @@ export const AxieCharacter: React.FC<AxieCharacterProps> = ({
           <path d="M 154 98 Q 186 102 184 112 Q 170 112 152 103" fill="#FF5D98" stroke="#D94B82" strokeWidth="2" />
         </g>
 
-        {/* Feet (Tucked smoothly during Jump) */}
+        {/* Feet (Tucked smoothly during Jump or stepping during WalkForward) */}
         <g
           style={{
-            transform: isJumping ? 'translate(0px, -8px) rotate(12deg)' : 'translate(0px, 0px)',
+            transform: isJumping
+              ? 'translate(0px, -8px) rotate(12deg)'
+              : isWalkingForward
+              ? 'translate(-6px, -3px) rotate(-6deg)'
+              : 'translate(0px, 0px)',
             transition: 'transform 220ms ease-out',
           }}
         >
@@ -152,8 +187,8 @@ export const AxieCharacter: React.FC<AxieCharacterProps> = ({
           <ellipse cx="128" cy="186" rx="15" ry="9" fill="#FF84B2" stroke="#D94B82" strokeWidth="2.5" />
         </g>
 
-        {/* Hydrodynamic Water Splash Ring & Bubble Trail when Jumping */}
-        {isJumping && (
+        {/* Hydrodynamic Water Splash Ring & Bubble Trail when Jumping or Walking Forward */}
+        {(isJumping || isWalkingForward) && (
           <g className="animate-hit-flash-burst" data-testid="axie-jump-water-trail">
             <ellipse
               cx="108"
@@ -259,19 +294,19 @@ export const AxieCharacter: React.FC<AxieCharacterProps> = ({
           />
         )}
 
-        {/* Glowing Sword Slash Trail Arc during fluid swing */}
+        {/* Glowing Sword Slash Trail Arc during fluid swing reaching across to the Monster */}
         {(isAttacking || isBubblePower) && (
           <path
-            d="M 85 16 Q -28 65 18 168 Q 4 78 85 16 Z"
-            fill={swordGlowingGold || isBubblePower ? '#FFD76B' : '#39D5D0'}
+            d="M 82 6 Q -65 55 -12 172 Q -24 72 82 6 Z"
+            fill={swordGlowingGold || isBubblePower || hasComboGlow ? '#FFD76B' : '#39D5D0'}
             stroke="#FFF8EE"
             strokeWidth="2.5"
-            opacity="0.88"
+            opacity="0.9"
             className="animate-slash-arc"
           />
         )}
 
-        {/* Coral Blue Magic Sword with Fluid Multi-Phase Swing */}
+        {/* Coral Blue Magic Sword with Extended Hero Blade, Fluid Swing & Growing Combo Glow */}
         <g
           className={isAttacking ? 'animate-sword-fluid-swing' : ''}
           style={
@@ -284,21 +319,35 @@ export const AxieCharacter: React.FC<AxieCharacterProps> = ({
                     ? 'rotate(-28deg) translate(0px, -18px)'
                     : isGreeting
                     ? 'rotate(15deg)'
-                    : 'rotate(-12deg)',
+                    : 'rotate(-14deg)',
                   transition: 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)',
                 }
               : undefined
           }
         >
+          {/* Growing Sword Glow Aura for Combo Multiplier */}
+          {(hasComboGlow || swordGlowingGold || isBubblePower) && (
+            <ellipse
+              cx="58"
+              cy="56"
+              rx={13 + comboIntensity * 5}
+              ry={58 + comboIntensity * 8}
+              fill={comboIntensity >= 2 || swordGlowingGold ? '#FFD76B' : '#39D5D0'}
+              opacity={0.28 + comboIntensity * 0.14}
+              className="animate-pulse"
+              data-testid="axie-sword-combo-glow"
+            />
+          )}
+          {/* Extended Hero Blade so the sword visibly reaches and strikes OctopusBoss */}
           <path
-            d="M 46 42 L 58 22 L 70 42 L 66 118 L 50 118 Z"
+            d="M 44 12 L 58 -14 L 72 12 L 66 118 L 50 118 Z"
             fill="url(#coralSwordGrad)"
             stroke="#FFF8EE"
             strokeWidth="2.5"
           />
-          <line x1="58" y1="30" x2="58" y2="112" stroke="#FFF8EE" strokeWidth="3" strokeLinecap="round" />
+          <line x1="58" y1="-2" x2="58" y2="112" stroke="#FFF8EE" strokeWidth="3.2" strokeLinecap="round" />
           <path
-            d="M 38 116 Q 58 126 78 116 L 74 126 Q 58 132 42 126 Z"
+            d="M 36 116 Q 58 126 80 116 L 76 126 Q 58 132 40 126 Z"
             fill="#FFD76B"
             stroke="#B45309"
             strokeWidth="2"

@@ -1,10 +1,12 @@
 import React from 'react';
-import { Volume2, VolumeX, Pause, Play, RotateCcw, Home, AlertTriangle, Sparkles } from 'lucide-react';
-import { CombatState } from '../game/types';
+import { Volume2, VolumeX, Pause, Play, RotateCcw, Home, AlertTriangle, Sparkles, Mic } from 'lucide-react';
+import { CombatState, MicrophoneStatus } from '../game/types';
 import { getCurrentStepConfig } from '../game/CombatEngine';
 
 interface GameHUDProps {
   state: CombatState;
+  micVolume?: number;
+  micStatus?: MicrophoneStatus;
   isMuted: boolean;
   onToggleMute: () => void;
   onTogglePause: () => void;
@@ -14,14 +16,16 @@ interface GameHUDProps {
 
 /**
  * World-Matched Underwater Game HUD positioned absolutely over the game container.
- * Shows:
- * - Health Bar + 3 Coral Hearts for Axie (شوالیهٔ صدفی)
- * - Health Bar for OctopusBoss / JellyGuardian (هیولای سکوت / ژله‌خان)
- * - Visual Special Move Telegraph Indicator when Boss is about to perform a special move
- * - Utility controls (Mute, Pause, Restart, Home)
+ * Includes:
+ * - Health Bar + 3 Coral Hearts for Axie
+ * - Real-time Microphone Volume Meter in the top HUD
+ * - Combo Multiplier Indicator when active
+ * - Health Bar for OctopusBoss / JellyGuardian
  */
 export const GameHUD: React.FC<GameHUDProps> = ({
   state,
+  micVolume = 0,
+  micStatus = 'READY',
   isMuted,
   onToggleMute,
   onTogglePause,
@@ -42,12 +46,24 @@ export const GameHUD: React.FC<GameHUDProps> = ({
     Math.min(100, Math.round((state.enemyHp / state.enemyMaxHp) * 100))
   );
 
-  // Determine Boss / Enemy Special Move Telegraph Visual Indicator
+  const isListening = micStatus === 'LISTENING';
+  const activeBars = isListening
+    ? Math.max(1, Math.ceil((micVolume / 100) * 5))
+    : micStatus === 'RECOGNIZED'
+    ? 5
+    : 0;
+
   const getSpecialMoveIndicator = (): {
     label: string;
     tone: 'danger' | 'opportunity';
   } | null => {
     if (state.phase === 'ROUND_COMPLETE' || state.phase === 'VICTORY') return null;
+    if (state.round === 2 && state.bossRange === 'FAR') {
+      return {
+        label: 'هشت‌پا دور است! اول بگو «برو جلو» تا نزدیک بشی و کمبو بزنی!',
+        tone: 'opportunity',
+      };
+    }
     switch (stepConfig.enemyTelegraphType) {
       case 'JELLY_BALL':
         return {
@@ -138,7 +154,6 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </div>
           </div>
 
-          {/* Axie Continuous Health Bar */}
           <div
             className="w-full h-2.5 sm:h-3 rounded-full bg-[#021c2e] border border-[#39D5D0] overflow-hidden p-0.5"
             data-testid="axie-health-bar"
@@ -150,17 +165,60 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </div>
         </div>
 
-        {/* Center Stage Badge & Score */}
-        <div className="flex flex-col items-center justify-center px-1 shrink-0">
+        {/* Center Stage Badge, Score, Combo & Real-Time Microphone Volume Meter */}
+        <div className="flex flex-col items-center justify-center px-1 shrink-0 gap-0.5">
           <span className="hidden md:inline text-xs font-black text-[#FFD76B] whitespace-nowrap">
             {stageTitle}
           </span>
-          <span
-            className="text-[11px] sm:text-xs font-black text-[#FFD76B] tabular-nums whitespace-nowrap"
-            data-testid="hud-stars-score"
-          >
-            امتیاز: {state.score}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className="text-[11px] sm:text-xs font-black text-[#FFD76B] tabular-nums whitespace-nowrap"
+              data-testid="hud-stars-score"
+            >
+              امتیاز: {state.score}
+            </span>
+
+            {/* Visual Real-Time Microphone Volume Meter */}
+            <div
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#021c2e]/90 border border-[#39D5D0]/50"
+              title="نوار حساسیت صدای میکروفون"
+              data-testid="hud-volume-meter"
+              data-volume={micVolume}
+            >
+              <Mic
+                className={`w-3 h-3 ${
+                  isListening ? 'text-rose-400 animate-pulse' : 'text-[#39D5D0]'
+                }`}
+              />
+              <div className="flex items-end gap-0.5 h-3">
+                {[1, 2, 3, 4, 5].map((barIdx) => {
+                  const isActive = barIdx <= activeBars;
+                  return (
+                    <span
+                      key={barIdx}
+                      className={`w-1 rounded-full transition-all duration-75 ${
+                        isActive
+                          ? barIdx >= 4
+                            ? 'bg-[#FFD76B]'
+                            : 'bg-[#39D5D0]'
+                          : 'bg-slate-700'
+                      }`}
+                      style={{ height: `${4 + barIdx * 1.6}px` }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {(state.comboCount >= 2 || state.comboMultiplier > 1) && (
+            <span
+              className="px-2 py-0.2 rounded-full bg-amber-400 text-[#042f4b] font-black text-[10px] shadow animate-bounce"
+              data-testid="hud-combo-badge"
+            >
+              ⚡ کمبو ×{state.comboMultiplier}!
+            </span>
+          )}
         </div>
 
         {/* Left Cluster: OctopusBoss / Enemy Health Bar */}

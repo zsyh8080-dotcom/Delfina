@@ -2,6 +2,7 @@
  * Procedural Web Audio API synthesizer + SpeechSynthesis narrator helper
  * Automatically pauses/ducks all game audio & speech while the child's microphone is listening
  * so game audio never interferes with Persian Speech-to-Text recognition.
+ * All ambient bubble sounds have been removed as requested.
  */
 
 class GameAudioManagerImpl {
@@ -13,7 +14,9 @@ class GameAudioManagerImpl {
   private getContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
       }
@@ -38,6 +41,13 @@ class GameAudioManagerImpl {
 
   public setMicListening(listening: boolean) {
     this.isMicListening = listening;
+    if (listening && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // ignore
+      }
+    }
   }
 
   private playTone(
@@ -57,7 +67,7 @@ class GameAudioManagerImpl {
       const gain = ctx.createGain();
       osc.type = type;
       osc.frequency.setValueAtTime(freq, now);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(40, endFreq), now + durationMs / 1000);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(35, endFreq), now + durationMs / 1000);
 
       gain.gain.setValueAtTime(gainLevel, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + durationMs / 1000);
@@ -69,6 +79,14 @@ class GameAudioManagerImpl {
     } catch {
       // Ignore audio errors when autoplay is blocked
     }
+  }
+
+  public startAmbientSoundscape(_isBossFight = false) {
+    // Bubble / ambient sounds intentionally disabled as requested by the user
+  }
+
+  public stopAmbientSoundscape() {
+    // No-op
   }
 
   public playClick() {
@@ -89,7 +107,37 @@ class GameAudioManagerImpl {
 
   public playSwordAttack() {
     this.playTone(300, 920, 160, 'triangle', 0.18);
-    setTimeout(() => this.playTone(780, 420, 190, 'sine', 0.15), 90);
+    setTimeout(() => this.playSwordClash(), 75);
+  }
+
+  public playSwordClash() {
+    this.playTone(1180, 520, 140, 'sawtooth', 0.11);
+    setTimeout(() => this.playTone(860, 440, 160, 'triangle', 0.13), 55);
+  }
+
+  public playComboStrike() {
+    const notes = [440, 659.25, 880, 1174.66];
+    notes.forEach((n, idx) => {
+      setTimeout(() => this.playTone(n, n * 1.25, 160, 'triangle', 0.17), idx * 55);
+    });
+  }
+
+  public playWalkForward() {
+    this.playTone(260, 390, 140, 'sine', 0.12);
+    setTimeout(() => this.playTone(330, 490, 150, 'sine', 0.12), 140);
+  }
+
+  public playBossRoar() {
+    this.playTone(155, 72, 420, 'sawtooth', 0.12);
+    setTimeout(() => this.playTone(125, 58, 380, 'triangle', 0.14), 110);
+  }
+
+  public playBossDodge() {
+    this.playTone(480, 240, 210, 'sine', 0.13);
+  }
+
+  public playBubblePop() {
+    // Bubble sound removed as requested
   }
 
   public playShieldPing() {
@@ -123,7 +171,12 @@ class GameAudioManagerImpl {
   }
 
   public speakPersian(text: string, onStart?: () => void, onEnd?: () => void) {
-    if (this.isMuted || this.isMicListening || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    if (
+      this.isMuted ||
+      this.isMicListening ||
+      typeof window === 'undefined' ||
+      !('speechSynthesis' in window)
+    ) {
       onEnd?.();
       return;
     }

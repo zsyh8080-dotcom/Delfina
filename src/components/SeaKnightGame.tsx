@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Play, HelpCircle, Compass, X, Mic, Sparkles, Shield, ArrowUp } from 'lucide-react';
+import { Play, HelpCircle, Compass, X, Mic, Sparkles, Shield, ArrowUp, Download } from 'lucide-react';
 import {
   BossBehaviorState,
   CombatState,
@@ -40,6 +40,17 @@ export const SeaKnightGame: React.FC = () => {
     return 'TITLE';
   });
 
+  // Initial Microphone Permission Modal at the very beginning of the game ("اول بازی یه پنجره باز بشه که دسترسی میکروفون رو بخواد")
+  const [showMicPermissionModal, setShowMicPermissionModal] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('autostart') === '1') {
+        return false;
+      }
+    }
+    return true;
+  });
+
   const [combatState, setCombatState] = useState<CombatState>(() =>
     createInitialCombatState(1, 'easy')
   );
@@ -55,14 +66,18 @@ export const SeaKnightGame: React.FC = () => {
       document.body.dataset.state = 'title';
     } else if (combatState.phase === 'PAUSED') {
       document.body.dataset.state = 'paused';
-    } else if (screen === 'QUIZ' || screen === 'LEARNING_SUMMARY') {
+    } else if (
+      screen === 'QUIZ' ||
+      screen === 'LEARNING_SUMMARY' ||
+      screen === 'VICTORY_SCREEN'
+    ) {
       document.body.dataset.state = 'gameover';
     } else {
       document.body.dataset.state = 'playing';
     }
   }, [screen, combatState.phase]);
 
-  // Dynamic OctopusBoss State Machine: transitions from APPROACHING_CENTER -> TELEGRAPHING_ATTACK -> HIT_RECOIL / DIZZY_STAGGER / BUBBLE_TRAPPED / DEFEATED
+  // Dynamic OctopusBoss State Machine: transitions from APPROACHING_CENTER -> TELEGRAPHING_ATTACK -> HIT_RECOIL / DODGING / DIZZY_STAGGER / BUBBLE_TRAPPED / DEFEATED
   useEffect(() => {
     if (combatState.pearlFreed || combatState.octopusAnim === 'HealedHappy') {
       setBossBehaviorState('DEFEATED');
@@ -70,6 +85,10 @@ export const SeaKnightGame: React.FC = () => {
     }
     if (combatState.octopusAnim === 'TrappedInBubble') {
       setBossBehaviorState('BUBBLE_TRAPPED');
+      return;
+    }
+    if (combatState.octopusAnim === 'Dodge') {
+      setBossBehaviorState('DODGING');
       return;
     }
     if (combatState.octopusAnim === 'Hit' || combatState.jellyAnim === 'Hit') {
@@ -81,7 +100,6 @@ export const SeaKnightGame: React.FC = () => {
       return;
     }
 
-    // When a new step becomes PLAYER_READY, boss first approaches center then telegraphs its attack
     setBossBehaviorState('APPROACHING_CENTER');
     const telegraphTimer = window.setTimeout(() => {
       if (
@@ -93,7 +111,7 @@ export const SeaKnightGame: React.FC = () => {
       ) {
         setBossBehaviorState('TELEGRAPHING_ATTACK');
       }
-    }, 320);
+    }, 280);
 
     return () => window.clearTimeout(telegraphTimer);
   }, [
@@ -105,8 +123,14 @@ export const SeaKnightGame: React.FC = () => {
     combatState.pearlFreed,
   ]);
 
+  const handleRequestInitialMicPermission = () => {
+    gameAudio.playClick();
+    setShowMicPermissionModal(false);
+  };
+
   const startAdventureFromTitle = useCallback(() => {
     gameAudio.playClick();
+    setShowMicPermissionModal(false);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -157,18 +181,35 @@ export const SeaKnightGame: React.FC = () => {
     setCombatState(createInitialCombatState(combatState.round, 'easy'));
   };
 
+  const handleToggleBossRange = useCallback(() => {
+    gameAudio.playClick();
+    setCombatState((prev) => ({
+      ...prev,
+      bossRange: prev.bossRange === 'NEAR' ? 'FAR' : 'NEAR',
+      octopusAnim: 'Idle',
+      lastFeedbackMessage:
+        prev.bossRange === 'NEAR'
+          ? 'هشت‌پا عقب رفت و دور شد! اگه الان حمله کنی جا خالی میده؛ اول بگو «برو جلو»!'
+          : 'آکسی نزدیک هشت‌پا شد! حالا بگو «حمله کن» تا جون هشت‌پا کم بشه!',
+    }));
+  }, []);
+
   const handleMicStateChange = useCallback((status: MicrophoneStatus) => {
     setCombatState((prev) => {
-      if (prev.phase === 'PLAYER_ACTION' || prev.phase === 'ROUND_COMPLETE' || prev.phase === 'VICTORY') {
+      if (
+        prev.phase === 'PLAYER_ACTION' ||
+        prev.phase === 'ROUND_COMPLETE' ||
+        prev.phase === 'VICTORY'
+      ) {
         return prev;
       }
       if (status === 'LISTENING') {
-        return { ...prev, axieAnim: 'Listening' };
+        return { ...prev, micStatus: status, axieAnim: 'Listening' };
       }
       if (status === 'PROCESSING') {
-        return { ...prev, axieAnim: 'Thinking' };
+        return { ...prev, micStatus: status, axieAnim: 'Thinking' };
       }
-      return prev;
+      return { ...prev, micStatus: status };
     });
   }, []);
 
@@ -178,24 +219,48 @@ export const SeaKnightGame: React.FC = () => {
         const outcome = evaluateFinalSpeechCommand(prev, transcript);
 
         if (!outcome.accepted) {
-          gameAudio.playUnknownCommand();
+          if (outcome.nextState.octopusAnim === 'Dodge') {
+            gameAudio.playBossDodge();
+            setBossBehaviorState('DODGING');
+          } else {
+            gameAudio.playUnknownCommand();
+          }
           return outcome.nextState;
         }
 
         // Play matching sound effect for the executed voice command
-        if (outcome.parsedCommand === 'ATTACK') {
-          gameAudio.playSwordAttack();
+        if (outcome.parsedCommand === 'MOVE_FORWARD') {
+          gameAudio.playWalkForward();
+          // Reset back to Idle after walking forward if still in PLAYER_READY
+          if (outcome.nextState.phase === 'PLAYER_READY') {
+            window.setTimeout(() => {
+              setCombatState((cur) =>
+                cur.phase === 'PLAYER_READY' && cur.axieAnim === 'WalkForward'
+                  ? { ...cur, axieAnim: 'Idle' }
+                  : cur
+              );
+            }, 620);
+            return outcome.nextState;
+          }
+        } else if (outcome.parsedCommand === 'ATTACK') {
+          if (outcome.nextState.comboMultiplier > 1 || outcome.nextState.comboCount >= 2) {
+            gameAudio.playComboStrike();
+          } else {
+            gameAudio.playSwordAttack();
+          }
           setBossBehaviorState('HIT_RECOIL');
         } else if (outcome.parsedCommand === 'SHIELD') {
           gameAudio.playShieldPing();
+          gameAudio.playSwordClash();
         } else if (outcome.parsedCommand === 'JUMP') {
           gameAudio.playJump();
         } else if (outcome.parsedCommand === 'BUBBLE_POWER') {
           gameAudio.playBubblePower();
+          gameAudio.playBubblePop();
           setBossBehaviorState('BUBBLE_TRAPPED');
         }
 
-        // Schedule step progression after character animation completes
+        // Schedule step progression after character animation completes (snappy 950ms for fast responsiveness)
         setTimeout(() => {
           setCombatState((afterActionState) => {
             const advanced = advanceAfterPlayerAction(afterActionState);
@@ -220,11 +285,11 @@ export const SeaKnightGame: React.FC = () => {
               setProgress(updated);
               setTimeout(() => {
                 setScreen('ENDING_STORY');
-              }, 1150);
+              }, 950);
             }
             return advanced;
           });
-        }, 1250);
+        }, 950);
 
         return outcome.nextState;
       });
@@ -264,13 +329,14 @@ export const SeaKnightGame: React.FC = () => {
     );
   }
 
-  if (screen === 'MID_BRIDGE' as GameScreen || screen === 'MID_STORY') {
+  if ((screen as string) === 'MID_BRIDGE' || screen === 'MID_STORY') {
     return (
       <StoryScene
         mode="MID_BRIDGE"
         onComplete={() => {
           const r2State = createInitialCombatState(2, 'easy');
           r2State.score = combatState.score;
+          gameAudio.playBossRoar();
           setCombatState(r2State);
           setScreen('ROUND_2');
         }}
@@ -296,10 +362,12 @@ export const SeaKnightGame: React.FC = () => {
         score={combatState.score}
         onFinishSummary={() => setScreen('QUIZ')}
         onCompleteQuiz={() => {
+          const finalReasonableScore = combatState.score + 4;
+          setCombatState((prev) => ({ ...prev, score: finalReasonableScore }));
           const updated = saveGameProgress({
             quizCompleted: true,
             medals: ['VOICE_COMMANDER', 'MAGIC_VOICE_HERO'],
-            bestScore: combatState.score + 20,
+            bestScore: finalReasonableScore,
           });
           setProgress(updated);
         }}
@@ -326,6 +394,7 @@ export const SeaKnightGame: React.FC = () => {
         onReturnTitle={() => setScreen('TITLE')}
         onMicStateChange={handleMicStateChange}
         onFinalTranscript={handleFinalTranscript}
+        onToggleBossRange={handleToggleBossRange}
         onProceedAfterRound1Victory={() => {
           gameAudio.playClick();
           setScreen('MID_STORY');
@@ -334,7 +403,7 @@ export const SeaKnightGame: React.FC = () => {
     );
   }
 
-  // Default: Game Cover / Title Screen (No difficulty selector as requested)
+  // Default: Game Cover / Title Screen
   return (
     <div
       className="relative w-full min-h-screen overflow-hidden flex flex-col justify-between bg-[#042f4b] select-none"
@@ -348,14 +417,12 @@ export const SeaKnightGame: React.FC = () => {
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover"
         />
-        {/* Negative-space scrim on right/top for high-contrast Persian title typography */}
         <div className="absolute inset-0 bg-gradient-to-l from-[#031d30]/92 via-[#042f4b]/65 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#031d30]/90 via-transparent to-[#031d30]/40" />
       </div>
 
       {/* Main Asymmetric Split Content */}
       <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-5 sm:px-8 py-6 flex flex-col lg:flex-row items-center justify-between gap-6">
-        {/* Right Column (in RTL): Custom Inline SVG Title Lockup & 3 Primary Buttons over Negative Space */}
         <div className="w-full lg:w-7/12 text-right space-y-5">
           {/* Bespoke Inline SVG Title Emblem Lockup */}
           <div className="w-full max-w-xl">
@@ -376,7 +443,6 @@ export const SeaKnightGame: React.FC = () => {
                   <stop offset="100%" stopColor="#39D5D0" />
                 </linearGradient>
               </defs>
-              {/* Decorative Seashell Crest Frame */}
               <path
                 d="M 16 26 Q 280 2 544 26 L 534 114 Q 280 130 26 114 Z"
                 fill="rgba(4, 47, 75, 0.78)"
@@ -414,8 +480,8 @@ export const SeaKnightGame: React.FC = () => {
             با صدات بجنگ و مروارید جادویی رو نجات بده! در این ماجراجویی زیرآبی، زره آکسی با فرمان‌های صوتی فارسی تو کار می‌کنه.
           </p>
 
-          {/* 3 Large, Rounded, Finger-Friendly Action Buttons (Section 7) */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2">
+          {/* Action Buttons + Direct Project ZIP Download Button */}
+          <div className="flex flex-wrap items-stretch sm:items-center gap-3.5 pt-2">
             <button
               type="button"
               data-start="true"
@@ -452,16 +518,24 @@ export const SeaKnightGame: React.FC = () => {
               <Compass className="w-5 h-5 text-[#FFD76B]" />
               <span>بازگشت به دلفینا</span>
             </button>
+
+            <a
+              href="/delfina-sea-knight-project.zip"
+              download="delfina-sea-knight-project.zip"
+              data-testid="download-project-zip-btn"
+              className="px-5 py-4 rounded-3xl bg-emerald-400 hover:bg-emerald-300 text-[#042f4b] font-black text-base shadow-[0_6px_0_#047857] active:translate-y-0.5 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+            >
+              <Download className="w-5 h-5" />
+              <span>دانلود فایل زیپ پروژه (ZIP)</span>
+            </a>
           </div>
         </div>
 
-        {/* Left Column (in RTL): Hero Characters Showcase (Axie in Foreground, Octopus Boss in Distance) */}
+        {/* Left Column (in RTL): Hero Characters Showcase */}
         <div className="w-full lg:w-5/12 flex items-center justify-center relative py-4">
-          {/* Octopus Boss in the distance */}
           <div className="opacity-90 scale-75 sm:scale-90 -ml-10 -mt-12">
             <OctopusBoss animation="Laugh" />
           </div>
-          {/* Axie Hero in the foreground */}
           <div className="z-10 -mr-6 mt-8">
             <AxieCharacter animation="Greeting" swordGlowingGold />
           </div>
@@ -470,8 +544,63 @@ export const SeaKnightGame: React.FC = () => {
 
       {/* Single Flat Borderless Control-Hint Line in Bottom Safe Margin */}
       <footer className="relative z-10 w-full text-center pb-4 px-4 text-xs sm:text-sm text-[#A5F3FC] font-medium">
-        فرمان‌های صوتی: «حمله کن» · «سپر بگیر» · «بپر بکن» · «قدرت حبابی» · کلید Enter یا Space برای شروع · Esc برای توقف
+        فرمان‌های صوتی: «حمله کن» · «سپر بگیر» · «بپر بکن» · «قدرت حبابی» · کلید Enter یا Space برای شروع
       </footer>
+
+      {/* Initial Microphone Permission Modal at Start of Game ("اول بازی یه پنجره باز بشه که دسترسی میکروفون رو بخواد") */}
+      {showMicPermissionModal && (
+        <div
+          className="fixed inset-0 z-50 bg-[#021827]/85 flex items-center justify-center p-4"
+          data-testid="mic-permission-modal"
+        >
+          <div className="w-full max-w-md rounded-3xl bg-[#042f4b] border-2 border-[#FFD76B] shadow-2xl p-6 text-center space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-full bg-[#39D5D0]/20 border-2 border-[#39D5D0] flex items-center justify-center text-[#FFD76B] shadow-[0_0_25px_rgba(57,213,208,0.4)]">
+              <Mic className="w-8 h-8 animate-pulse" />
+            </div>
+
+            <h2 className="text-2xl font-display text-[#FFD76B]">
+              دسترسی به میکروفون قهرمان!
+            </h2>
+
+            <p className="text-sm text-[#FFF8EE] font-semibold leading-relaxed">
+              برای اینکه زره جادوییِ آکسی صدای تو رو بشنوه و با فرمان‌های صوتی «حمله کن»، «سپر بگیر»، «بپر بکن» و «قدرت حبابی» حرکت کنه، اجازهٔ دسترسی به میکروفون رو بده!
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleRequestInitialMicPermission}
+                data-testid="grant-mic-permission-btn"
+                className="w-full sm:w-auto flex-1 py-3.5 px-5 rounded-2xl bg-[#FFD76B] hover:bg-amber-300 text-[#042f4b] font-black text-sm sm:text-base shadow-[0_5px_0_#B45309] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Mic className="w-5 h-5" />
+                <span>اجازه دادن به میکروفون</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowMicPermissionModal(false)}
+                data-testid="dismiss-mic-permission-btn"
+                className="w-full sm:w-auto py-3.5 px-4 rounded-2xl bg-[#074268] hover:bg-[#09588a] border border-[#39D5D0]/60 text-[#A5F3FC] font-extrabold text-xs sm:text-sm cursor-pointer"
+              >
+                فعلاً ادامه بده
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-[#39D5D0]/30">
+              <a
+                href="/delfina-sea-knight-project.zip"
+                download="delfina-sea-knight-project.zip"
+                data-testid="modal-download-project-zip-btn"
+                className="w-full py-2.5 px-4 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-[#042f4b] font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>دانلود مستقیم فایل زیپ پروژه (ZIP)</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* How-To-Play Modal ("چطوری بازی کنم؟") */}
       {showHowToPlayModal && (
@@ -496,7 +625,7 @@ export const SeaKnightGame: React.FC = () => {
             </div>
 
             <p className="text-sm text-[#A5F3FC] leading-relaxed">
-              زره جادوییِ آکسی به صدای تو (حتی با صدای آروم و یواش) گوش میده! هر نوبت روی دکمهٔ بزرگ میکروفون بزن و یکی از این فرمان‌های فارسی رو بگو:
+              زره جادوییِ آکسی به صدای تو گوش میده! هر نوبت روی دکمهٔ بزرگ میکروفون بزن و یکی از این فرمان‌های فارسی رو بگو:
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">

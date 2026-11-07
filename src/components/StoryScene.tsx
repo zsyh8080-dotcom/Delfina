@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, FastForward, Sparkles, Volume2 } from 'lucide-react';
+import { ChevronLeft, FastForward, Sparkles } from 'lucide-react';
 import { AxieCharacter } from './AxieCharacter';
 import { OctopusBoss } from './OctopusBoss';
 import { gameAudio } from '../game/GameAudioManager';
@@ -13,7 +13,13 @@ interface StorySlide {
   speaker: 'دلفی' | 'آکسی' | 'هشت‌پا';
   text: string;
   subText?: string;
-  sceneVisual: 'HAPPY_CASTLE' | 'PEARL_STOLEN' | 'SHELL_HOUSE' | 'AXIE_CALL_TO_ACTION' | 'MID_HALL' | 'ENDING_CELEBRATION';
+  sceneVisual:
+    | 'HAPPY_CASTLE'
+    | 'PEARL_STOLEN'
+    | 'SHELL_HOUSE'
+    | 'AXIE_CALL_TO_ACTION'
+    | 'MID_HALL'
+    | 'ENDING_CELEBRATION';
   ctaLabel?: string;
 }
 
@@ -21,7 +27,8 @@ const INTRO_SLIDES: StorySlide[] = [
   {
     id: 'intro-1',
     speaker: 'دلفی',
-    text: 'سلام دوست من! من دلفی هستم! تهِ دریای آبی، یه قلعهٔ جادویی بود که با صدای دوستای دریایی می‌درخشید!',
+    // Removed "سلام دوست من! من دلفی هستم!" as requested by the user
+    text: 'تهِ دریای آبی، یه قلعهٔ جادویی بود که با صدای دوستای دریایی می‌درخشید!',
     subText: 'هر وقت ماهی‌ها می‌خندیدن یا آواز می‌خوندن، «مروارید صدا» بالای برج اصلی نور می‌پاشید.',
     sceneVisual: 'HAPPY_CASTLE',
   },
@@ -60,7 +67,7 @@ const MID_SLIDES: StorySlide[] = [
     id: 'mid-2',
     speaker: 'آکسی',
     text: 'وای! این یکی خیلی بزرگ‌تره! ولی حالا من یه دوست دارم که با صداش کمکم می‌کنه!',
-    subText: 'آماده‌ای؟ این بار باید با فرمان‌های «حمله کن»، «سپر بگیر» و «بپر بکن» بجنگیم!',
+    subText: 'آماده‌ای؟ این بار باید با فرمان‌های «حمله کن»، «سپر بگیر»، «بپر بکن» و «قدرت حبابی» بجنگیم!',
     sceneVisual: 'MID_HALL',
     ctaLabel: 'آمادهٔ نبردم!',
   },
@@ -109,7 +116,6 @@ const DelfiNarratorCharacter: React.FC<{ isSpeaking?: boolean }> = ({ isSpeaking
         </linearGradient>
       </defs>
 
-      {/* Cute Dolphin Dorsal Fin & Tail */}
       <path
         d="M 108 38 Q 134 18 140 48 Q 124 46 112 52 Z"
         fill="#0284C7"
@@ -123,7 +129,6 @@ const DelfiNarratorCharacter: React.FC<{ isSpeaking?: boolean }> = ({ isSpeaking
         strokeWidth="2.5"
       />
 
-      {/* Dolphin Rounded Body */}
       <path
         d="M 46 92 C 42 46, 138 38, 156 96 C 166 130, 146 156, 110 156 C 72 156, 52 128, 46 92 Z"
         fill="url(#delfiBodyGrad)"
@@ -131,10 +136,8 @@ const DelfiNarratorCharacter: React.FC<{ isSpeaking?: boolean }> = ({ isSpeaking
         strokeWidth="3"
       />
 
-      {/* Light Cream Belly */}
       <ellipse cx="96" cy="116" rx="34" ry="30" fill="url(#delfiBellyGrad)" />
 
-      {/* Cute Dolphin Snout / Beak */}
       <path
         d="M 52 94 Q 20 96 24 110 Q 34 118 58 112 Z"
         fill="url(#delfiBodyGrad)"
@@ -142,15 +145,12 @@ const DelfiNarratorCharacter: React.FC<{ isSpeaking?: boolean }> = ({ isSpeaking
         strokeWidth="2.5"
       />
 
-      {/* Expressive Kind Eyes */}
       <circle cx="72" cy="82" r="10.5" fill="#1E1B4B" />
       <circle cx="69" cy="78" r="3.8" fill="#FFFFFF" />
       <circle cx="75" cy="85" r="2" fill="#67E8F9" />
 
-      {/* Rosy Cheek */}
       <ellipse cx="82" cy="96" rx="7.5" ry="4" fill="#FF84B2" opacity="0.65" />
 
-      {/* Smiling Mouth */}
       {isSpeaking ? (
         <path
           d="M 42 108 Q 58 124 72 108 Z"
@@ -168,7 +168,6 @@ const DelfiNarratorCharacter: React.FC<{ isSpeaking?: boolean }> = ({ isSpeaking
         />
       )}
 
-      {/* Cute Waving Flipper */}
       <path
         d="M 98 114 Q 124 102 134 122 Q 114 134 94 126 Z"
         fill="#38BDF8"
@@ -176,7 +175,6 @@ const DelfiNarratorCharacter: React.FC<{ isSpeaking?: boolean }> = ({ isSpeaking
         strokeWidth="2.5"
       />
 
-      {/* Small Seashell Star Crown on Delfi */}
       <circle cx="96" cy="46" r="7" fill="#FFD76B" stroke="#FFF8EE" strokeWidth="2" />
     </svg>
     <span className="mt-1 px-3 py-0.5 rounded-full bg-[#042f4b]/90 border border-[#39D5D0] text-xs font-extrabold text-[#FFD76B]">
@@ -199,28 +197,34 @@ export const StoryScene: React.FC<StorySceneProps> = ({ mode, onComplete }) => {
 
   const currentSlide = slides[index] || slides[0];
   const isLast = index === slides.length - 1;
+  const fullDialogueText = `${currentSlide.text}${currentSlide.subText ? ` ${currentSlide.subText}` : ''}`;
+  const [typedLen, setTypedLen] = useState<number>(fullDialogueText.length);
+
+  // Typing animation effect for Delfi & Axie dialogues
+  useEffect(() => {
+    setTypedLen(0);
+    const total = fullDialogueText.length;
+    let cur = 0;
+    const step = Math.max(2, Math.ceil(total / 22));
+    const timer = window.setInterval(() => {
+      cur += step;
+      if (cur >= total) {
+        setTypedLen(total);
+        window.clearInterval(timer);
+      } else {
+        setTypedLen(cur);
+      }
+    }, 20);
+    return () => window.clearInterval(timer);
+  }, [fullDialogueText]);
 
   useEffect(() => {
     setIsSpeaking(true);
-    gameAudio.speakPersian(
-      currentSlide.text,
-      () => setIsSpeaking(true),
-      () => setIsSpeaking(false)
-    );
-    const timer = setTimeout(() => setIsSpeaking(false), 3200);
+    const timer = setTimeout(() => setIsSpeaking(false), 1800);
     return () => {
       clearTimeout(timer);
     };
   }, [index, currentSlide.text]);
-
-  const handleReplaySpeech = () => {
-    setIsSpeaking(true);
-    gameAudio.speakPersian(
-      currentSlide.text,
-      () => setIsSpeaking(true),
-      () => setIsSpeaking(false)
-    );
-  };
 
   const handleNext = () => {
     gameAudio.playClick();
@@ -239,6 +243,8 @@ export const StoryScene: React.FC<StorySceneProps> = ({ mode, onComplete }) => {
   };
 
   const bgImage = mode === 'MID_BRIDGE' ? bossBgUrl : titleBgUrl;
+  const visibleStoryText = fullDialogueText.slice(0, typedLen);
+  const hiddenStoryText = fullDialogueText.slice(typedLen);
 
   return (
     <div
@@ -288,7 +294,6 @@ export const StoryScene: React.FC<StorySceneProps> = ({ mode, onComplete }) => {
 
       {/* Center Stage: Animated Characters (Delfi, Axie, Octopus) & Pearl of Voice */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-2">
-        {/* Glowing Pearl of Voice Banner on Happy Castle or Ending */}
         {(currentSlide.sceneVisual === 'HAPPY_CASTLE' ||
           currentSlide.sceneVisual === 'ENDING_CELEBRATION') && (
           <div className="mb-3 flex flex-col items-center animate-bounce">
@@ -302,12 +307,10 @@ export const StoryScene: React.FC<StorySceneProps> = ({ mode, onComplete }) => {
         )}
 
         <div className="flex items-center justify-center gap-6 sm:gap-12 flex-wrap">
-          {/* Delfi the Dolphin Narrator */}
           {currentSlide.speaker === 'دلفی' && (
             <DelfiNarratorCharacter isSpeaking={isSpeaking} />
           )}
 
-          {/* Axie Character */}
           {currentSlide.sceneVisual !== 'PEARL_STOLEN' && (
             <div className="flex flex-col items-center">
               <AxieCharacter
@@ -330,7 +333,6 @@ export const StoryScene: React.FC<StorySceneProps> = ({ mode, onComplete }) => {
             </div>
           )}
 
-          {/* Octopus Character */}
           {(currentSlide.sceneVisual === 'PEARL_STOLEN' ||
             currentSlide.sceneVisual === 'MID_HALL' ||
             currentSlide.sceneVisual === 'ENDING_CELEBRATION') && (
@@ -351,34 +353,40 @@ export const StoryScene: React.FC<StorySceneProps> = ({ mode, onComplete }) => {
         </div>
       </div>
 
-      {/* Bottom Story Dialogue Bubble (Single Unified Text inside Bubble — Controls Outside) */}
-      <div className="relative z-20 w-full max-w-2xl mx-auto px-4 pb-6 space-y-3">
+      {/* Bottom Story Dialogue Bubble with Speaker Label Above ("دیالوگای دلفی بالاش بنویس دلفی: دیالوگای آکسی بالاش بنویس آکسی:") */}
+      <div className="relative z-20 w-full max-w-2xl mx-auto px-4 pb-6 space-y-2">
+        {/* Speaker Name Label Placed Above the Speech Bubble */}
+        <div className="flex justify-start px-3">
+          <span
+            className={`inline-flex items-center px-3.5 py-0.5 rounded-t-xl font-black text-xs sm:text-sm shadow ${
+              currentSlide.speaker === 'دلفی'
+                ? 'bg-[#FFD76B] text-[#042f4b]'
+                : currentSlide.speaker === 'آکسی'
+                ? 'bg-[#39D5D0] text-[#042f4b]'
+                : 'bg-[#C084FC] text-[#2E1065]'
+            }`}
+            data-testid="story-speaker-label"
+          >
+            {currentSlide.speaker}:
+          </span>
+        </div>
+
         {/* Pure Single-Part Speech Bubble ("حباب ها داخلیش دو قسمتی نباشه فقط یه متن واحد باشه") */}
         <div className="relative rounded-3xl bg-[#042f4b]/95 border-2 border-[#39D5D0] shadow-[0_14px_36px_rgba(0,0,0,0.6)] p-5 sm:p-6 text-right">
-          {/* Speech bubble pointer tail pointing up to the active speaker */}
           <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-5 h-5 bg-[#042f4b] border-t-2 border-l-2 border-[#39D5D0] rotate-45 pointer-events-none" />
 
           <p
             className="text-base sm:text-xl font-extrabold text-[#FFF8EE] leading-relaxed"
             data-testid="story-dialogue-text"
           >
-            «{currentSlide.text}{currentSlide.subText ? ` ${currentSlide.subText}` : ''}»
+            «<span>{visibleStoryText}</span>
+            <span className="opacity-0">{hiddenStoryText}</span>»
           </p>
         </div>
 
-        {/* External Story Navigation & Speaker Bar (Outside the Bubble) */}
-        <div className="flex items-center justify-between gap-3 px-2">
+        {/* External Story Navigation Bar (Outside the Bubble) */}
+        <div className="flex items-center justify-between gap-3 px-2 pt-1">
           <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleReplaySpeech}
-              aria-label="پخش صدای داستان"
-              data-testid="story-speaker-btn"
-              className="w-10 h-10 rounded-xl bg-[#074268] hover:bg-[#09588a] border border-[#39D5D0]/60 flex items-center justify-center text-[#FFD76B] shrink-0 cursor-pointer shadow"
-            >
-              <Volume2 className="w-5 h-5" />
-            </button>
-
             <div className="flex items-center gap-1.5">
               {slides.map((s, i) => (
                 <span

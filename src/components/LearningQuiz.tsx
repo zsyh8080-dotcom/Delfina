@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Mic, FileText, Sword, CheckCircle2, HelpCircle, Award, RotateCcw, Compass } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CheckCircle2, HelpCircle, ChevronLeft } from 'lucide-react';
 import { AxieCharacter } from './AxieCharacter';
+import { VictoryScreen } from './VictoryScreen';
 import { gameAudio } from '../game/GameAudioManager';
 
 interface LearningQuizProps {
@@ -17,6 +18,25 @@ interface QuizQuestion {
   question: string;
   options: { id: string; text: string; isCorrect: boolean; explanation: string }[];
 }
+
+const SUMMARY_SPEECH_BUBBLES: { num: number; text: string }[] = [
+  {
+    num: 1,
+    text: 'گام اول (دریافت صدا): وقتی تو با میکروفون حرف زدی، میکروفون موج صدای تو رو گرفت و به زره جادویی فرستاد!',
+  },
+  {
+    num: 2,
+    text: 'گام دوم (تشخیص گفتار): بعد هوش مصنوعی صدای تو رو شنید و اون رو به یک نوشتهٔ فارسی مثل «حمله کن» یا «برو جلو» تبدیل کرد!',
+  },
+  {
+    num: 3,
+    text: 'گام سوم (اجرای فرمان): در ادامه، سیستم بازی اون نوشته رو با فرمان‌های زره تطبیق داد و من همون حرکت جنگی رو انجام دادم!',
+  },
+  {
+    num: 4,
+    text: 'جمع‌بندی: اسم تبدیل صدا به نوشته «تشخیص گفتار» است و بعد از تبدیل شدن صدا به متن، بازی نوشته رو بررسی می‌کنه تا فرمان حرکت رو اجرا کنه!',
+  },
+];
 
 const QUIZ_QUESTIONS: QuizQuestion[] = [
   {
@@ -101,190 +121,136 @@ export const LearningQuiz: React.FC<LearningQuizProps> = ({
   onPlayAgain,
   onOpenDelfinaHub,
 }) => {
-  const [activeSummaryStep, setActiveSummaryStep] = useState<number>(1);
+  const [activeBubbleIndex, setActiveBubbleIndex] = useState<number>(0);
   const [qIndex, setQIndex] = useState<number>(0);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ isCorrect: boolean; text: string } | null>(null);
   const [quizFinished, setQuizFinished] = useState<boolean>(false);
 
+  // Auto-advance the speech bubbles in SUMMARY mode ("حباب ها اوتومات میرن بعدی") without bubble voice audio
+  useEffect(() => {
+    if (mode !== 'SUMMARY') return;
+
+    if (activeBubbleIndex < SUMMARY_SPEECH_BUBBLES.length - 1) {
+      const autoTimer = window.setTimeout(() => {
+        setActiveBubbleIndex((prev) => Math.min(SUMMARY_SPEECH_BUBBLES.length - 1, prev + 1));
+      }, 3600);
+      return () => window.clearTimeout(autoTimer);
+    }
+    return undefined;
+  }, [mode, activeBubbleIndex]);
+
   if (mode === 'SUMMARY') {
-    const steps = [
-      {
-        num: 1,
-        title: 'مرحلهٔ اول: دریافت صدا',
-        desc: 'اول تو حرف زدی و میکروفون موج صدای تو رو گرفت!',
-        badge: 'ورودی صوتی (میکروفون)',
-        icon: <Mic className="w-7 h-7 text-[#39D5D0]" />,
-      },
-      {
-        num: 2,
-        title: 'مرحلهٔ دوم: تشخیص گفتار (Speech-to-Text)',
-        desc: 'بعد هوش مصنوعی حرفتو شنید و اون رو به نوشته تبدیل کرد (مثلاً نوشتهٔ «حمله کن»)!',
-        badge: 'تبدیل صدا به متن',
-        icon: <FileText className="w-7 h-7 text-[#FFD76B]" />,
-      },
-      {
-        num: 3,
-        title: 'مرحلهٔ سوم: تطبیق متن و اجرای فرمان',
-        desc: 'در آخر، سیستم بازی نوشته رو با فرمان‌های مجاز تطبیق داد و آکسی همون حرکت رو انجام داد!',
-        badge: 'اجرای فرمان بازی',
-        icon: <Sword className="w-7 h-7 text-[#FF84B2]" />,
-      },
-    ];
+    const currentBubble =
+      SUMMARY_SPEECH_BUBBLES[activeBubbleIndex] || SUMMARY_SPEECH_BUBBLES[0];
+    const isLastBubble = activeBubbleIndex === SUMMARY_SPEECH_BUBBLES.length - 1;
 
     return (
       <div
         className="w-full min-h-screen bg-gradient-to-b from-[#042f4b] via-[#063f63] to-[#032238] flex flex-col items-center justify-center px-4 py-6 select-none"
         data-testid="learning-summary-screen"
       >
-        <div className="w-full max-w-3xl rounded-3xl bg-[#042f4b]/95 border-2 border-[#39D5D0] shadow-2xl p-5 sm:p-7">
-          <div className="flex flex-col sm:flex-row items-center gap-4 mb-5">
-            <AxieCharacter animation="Celebrate" className="w-28 h-28 sm:w-32 sm:h-32 shrink-0" />
-            <div className="text-right">
-              <h2 className="text-2xl sm:text-3xl font-display text-[#FFD76B] mb-1">
-                راز علمیِ زره جادویی: تشخیص گفتار چطوری کار می‌کنه؟
-              </h2>
-              <p className="text-sm sm:text-base text-[#A5F3FC] font-semibold">
-                روی هر مرحله بزن تا ببینی صدای تو چطوری به حرکت شمشیر تبدیل شد:
-              </p>
-            </div>
+        <div className="w-full max-w-2xl rounded-3xl bg-[#042f4b]/95 border-2 border-[#39D5D0] shadow-2xl p-5 sm:p-7 flex flex-col items-center">
+          <h2 className="text-xl sm:text-2xl font-display text-[#FFD76B] mb-2 text-center">
+            راز علمیِ زره جادویی: تشخیص گفتار چطوری کار می‌کنه؟
+          </h2>
+
+          <AxieCharacter animation="Celebrate" isSpeaking className="my-2" />
+
+          {/* Speaker Label Above the Speech Bubble */}
+          <div className="w-full flex justify-start px-3 mt-2">
+            <span
+              className="inline-flex items-center px-3.5 py-0.5 rounded-t-xl bg-[#39D5D0] text-[#042f4b] font-black text-xs sm:text-sm shadow"
+              data-testid="summary-speaker-label"
+            >
+              آکسی:
+            </span>
           </div>
 
-          {/* 3 Interactive Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-            {steps.map((st) => {
-              const isSelected = activeSummaryStep >= st.num;
-              return (
-                <button
-                  key={st.num}
-                  type="button"
-                  onClick={() => {
-                    gameAudio.playClick();
-                    setActiveSummaryStep(st.num);
-                  }}
-                  data-testid={`summary-step-${st.num}`}
-                  className={`text-right p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                    isSelected
-                      ? 'bg-[#085582] border-[#FFD76B] shadow-lg scale-[1.01]'
-                      : 'bg-[#053756] border-[#39D5D0]/40 opacity-80'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-black text-[#FFD76B]">
-                        گام {st.num}
-                      </span>
-                      {st.icon}
-                    </div>
-                    <h3 className="text-base font-extrabold text-[#FFF8EE] mb-1.5">
-                      {st.title}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-[#A5F3FC] leading-relaxed">
-                      {st.desc}
-                    </p>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-[#39D5D0]/30 text-[11px] font-bold text-[#FFD76B]">
-                    {st.badge}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          {/* Single Unified Speech Bubble that Automatically Advances ("به صورت حباب گفتاریه که متن به هم پیوسته داخلش داره و جمع بندی اخرین حبابشه و حباب ها اوتومات میرن بعدی") */}
+          <div
+            className="relative w-full rounded-3xl bg-[#032238] border-2 border-[#FFD76B] shadow-[0_10px_30px_rgba(0,0,0,0.55)] p-5 sm:p-6 text-right"
+            data-testid="summary-speech-bubble"
+            data-bubble-step={currentBubble.num}
+          >
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-5 h-5 bg-[#032238] border-t-2 border-l-2 border-[#FFD76B] rotate-45 pointer-events-none" />
 
-          {/* Scientific Distinction Callout */}
-          <div className="rounded-2xl bg-[#074268] border border-[#39D5D0] p-4 mb-5 text-right">
-            <p className="text-xs sm:text-sm font-bold text-[#FFF8EE] leading-relaxed">
-              💡 <span className="text-[#FFD76B]">جمع‌بندی آکسی:</span> اسم تبدیل صدا به نوشته،{' '}
-              <span className="text-[#39D5D0] underline">تشخیص گفتار</span> است! و بعد از اینکه صدا به نوشته تبدیل شد، بازی اون نوشته رو بررسی می‌کنه تا{' '}
-              <span className="text-[#FFD76B] underline">فرمانِ حرکت</span> رو اجرا کنه!
+            <p
+              className="text-base sm:text-lg font-extrabold text-[#FFF8EE] leading-relaxed"
+              data-testid="summary-bubble-text"
+            >
+              «{currentBubble.text}»
             </p>
           </div>
 
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => {
-                gameAudio.playClick();
-                onFinishSummary();
-              }}
-              data-testid="start-quiz-btn"
-              className="px-6 py-3 rounded-2xl bg-[#FFD76B] hover:bg-amber-300 text-[#042f4b] font-black text-base shadow-[0_5px_0_#B45309] cursor-pointer whitespace-nowrap"
-            >
-              بریم سراغ کوییز پایانی! (۳ سؤال)
-            </button>
+          {/* Step Indicator Pills & Controls Outside the Speech Bubble */}
+          <div className="w-full flex flex-wrap items-center justify-between gap-3 mt-4 px-1">
+            <div className="flex items-center gap-2">
+              {SUMMARY_SPEECH_BUBBLES.map((b, idx) => (
+                <button
+                  key={b.num}
+                  type="button"
+                  onClick={() => {
+                    gameAudio.playClick();
+                    setActiveBubbleIndex(idx);
+                  }}
+                  data-testid={`summary-step-${b.num}`}
+                  className={`px-2.5 py-1 rounded-full text-xs font-black transition-all cursor-pointer ${
+                    idx === activeBubbleIndex
+                      ? 'bg-[#FFD76B] text-[#042f4b] scale-105 shadow'
+                      : idx < activeBubbleIndex
+                      ? 'bg-[#39D5D0]/40 text-[#FFF8EE]'
+                      : 'bg-[#074268] text-[#A5F3FC]'
+                  }`}
+                >
+                  {idx === SUMMARY_SPEECH_BUBBLES.length - 1 ? 'جمع‌بندی' : `حباب ${b.num}`}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!isLastBubble && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    gameAudio.playClick();
+                    setActiveBubbleIndex((prev) => prev + 1);
+                  }}
+                  data-testid="next-summary-bubble-btn"
+                  className="px-4 py-2.5 rounded-2xl bg-[#074268] hover:bg-[#09588a] border border-[#39D5D0] text-[#FFF8EE] font-extrabold text-xs sm:text-sm flex items-center gap-1 cursor-pointer"
+                >
+                  <span>حباب بعدی</span>
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  gameAudio.playClick();
+                  gameAudio.stopAllSpeech();
+                  onFinishSummary();
+                }}
+                data-testid="start-quiz-btn"
+                className="px-5 py-3 rounded-2xl bg-[#FFD76B] hover:bg-amber-300 text-[#042f4b] font-black text-sm sm:text-base shadow-[0_5px_0_#B45309] cursor-pointer whitespace-nowrap"
+              >
+                بریم سراغ کوییز پایانی! (۳ سؤال)
+              </button>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // Final Reward Screen after completing all 3 quiz questions
+  // Final Reward Screen after completing all 3 quiz questions -> uses custom VictoryScreen with Medal Emblem!
   if (quizFinished) {
     return (
-      <div
-        className="w-full min-h-screen bg-gradient-to-b from-[#042f4b] via-[#063f63] to-[#032238] flex flex-col items-center justify-center px-4 py-6 select-none"
-        data-testid="final-reward-screen"
-      >
-        <div className="w-full max-w-xl rounded-3xl bg-[#042f4b]/95 border-2 border-[#FFD76B] shadow-2xl p-6 text-center">
-          <div className="flex justify-center mb-2">
-            <AxieCharacter animation="Victory" swordGlowingGold />
-          </div>
-
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#FFD76B]/20 border border-[#FFD76B] text-[#FFD76B] font-black text-sm mb-3">
-            <Award className="w-5 h-5" />
-            <span>مدال «قهرمان صداهای جادویی» باز شد!</span>
-          </div>
-
-          <h2 className="text-3xl font-display text-[#FFF8EE] mb-2">
-            آفرین قهرمانِ دلفینا!
-          </h2>
-          <p className="text-sm sm:text-base text-[#A5F3FC] font-semibold mb-4 leading-relaxed">
-            تو هم قلعهٔ مرجانی و هشت‌پا رو نجات دادی و هم یاد گرفتی هوش مصنوعی چطور گفتار فارسی رو به نوشته و فرمان تبدیل می‌کنه!
-          </p>
-
-          <div className="grid grid-cols-2 gap-3 mb-6 text-center">
-            <div className="p-3 rounded-2xl bg-[#074268] border border-[#39D5D0]/50">
-              <div className="text-xs text-[#A5F3FC]">امتیاز کل ماجراجویی</div>
-              <div className="text-2xl font-black text-[#FFD76B] tabular-nums">{score}</div>
-            </div>
-            <div className="p-3 rounded-2xl bg-[#074268] border border-[#39D5D0]/50">
-              <div className="text-xs text-[#A5F3FC]">مدال‌های کسب‌شده</div>
-              <div className="text-sm font-black text-[#39D5D0] mt-1">
-                فرماندهٔ صدا · قهرمان صداهای جادویی
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <button
-              type="button"
-              data-start="true"
-              onClick={() => {
-                gameAudio.playClick();
-                onPlayAgain();
-              }}
-              data-testid="play-again-btn"
-              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#FFD76B] hover:bg-amber-300 text-[#042f4b] font-black text-base shadow-[0_5px_0_#B45309] flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-            >
-              <RotateCcw className="w-5 h-5" />
-              <span>دوباره بازی کنیم</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                gameAudio.playClick();
-                onOpenDelfinaHub();
-              }}
-              data-testid="return-delfina-btn"
-              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[#39D5D0] hover:bg-[#67E8F9] text-[#042f4b] font-black text-base shadow-[0_5px_0_#087EB7] flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-            >
-              <Compass className="w-5 h-5" />
-              <span>برگشت به دلفینا</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      <VictoryScreen
+        score={score}
+        onPlayAgain={onPlayAgain}
+        onOpenDelfinaHub={onOpenDelfinaHub}
+      />
     );
   }
 
@@ -380,7 +346,7 @@ export const LearningQuiz: React.FC<LearningQuizProps> = ({
                 data-testid="quiz-next-btn"
                 className="px-5 py-2 rounded-xl bg-[#FFD76B] text-[#042f4b] font-black text-xs sm:text-sm shrink-0 cursor-pointer whitespace-nowrap"
               >
-                {qIndex + 1 < QUIZ_QUESTIONS.length ? 'سؤال بعدی' : 'دریافت مدال قهرمانی!'}
+                {qIndex + 1 < QUIZ_QUESTIONS.length ? 'سؤال بعدی' : 'دریافت نشان قهرمانی!'}
               </button>
             )}
           </div>
