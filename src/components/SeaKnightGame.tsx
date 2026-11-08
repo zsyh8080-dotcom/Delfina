@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Play, HelpCircle, Compass, X, Mic, Sparkles, Shield, ArrowUp, Download } from 'lucide-react';
+import { Play, HelpCircle, Compass, X, Mic, Sparkles, Shield, ArrowUp } from 'lucide-react';
 import {
   BossBehaviorState,
   CombatState,
@@ -480,8 +480,8 @@ export const SeaKnightGame: React.FC = () => {
             با صدات بجنگ و مروارید جادویی رو نجات بده! در این ماجراجویی زیرآبی، زره آکسی با فرمان‌های صوتی فارسی تو کار می‌کنه.
           </p>
 
-          {/* Action Buttons + Direct Project ZIP Download Button */}
-          <div className="flex flex-wrap items-stretch sm:items-center gap-3.5 pt-2">
+          {/* 3 Large, Rounded, Finger-Friendly Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2">
             <button
               type="button"
               data-start="true"
@@ -518,16 +518,6 @@ export const SeaKnightGame: React.FC = () => {
               <Compass className="w-5 h-5 text-[#FFD76B]" />
               <span>بازگشت به دلفینا</span>
             </button>
-
-            <a
-              href="/delfina-sea-knight-project.zip"
-              download="delfina-sea-knight-project.zip"
-              data-testid="download-project-zip-btn"
-              className="px-5 py-4 rounded-3xl bg-emerald-400 hover:bg-emerald-300 text-[#042f4b] font-black text-base shadow-[0_6px_0_#047857] active:translate-y-0.5 transition-all flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
-            >
-              <Download className="w-5 h-5" />
-              <span>دانلود فایل زیپ پروژه (ZIP)</span>
-            </a>
           </div>
         </div>
 
@@ -585,18 +575,6 @@ export const SeaKnightGame: React.FC = () => {
               >
                 فعلاً ادامه بده
               </button>
-            </div>
-
-            <div className="pt-2 border-t border-[#39D5D0]/30">
-              <a
-                href="/delfina-sea-knight-project.zip"
-                download="delfina-sea-knight-project.zip"
-                data-testid="modal-download-project-zip-btn"
-                className="w-full py-2.5 px-4 rounded-2xl bg-emerald-400 hover:bg-emerald-300 text-[#042f4b] font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                <span>دانلود مستقیم فایل زیپ پروژه (ZIP)</span>
-              </a>
             </div>
           </div>
         </div>
